@@ -86,7 +86,7 @@ eyebrows; generous whitespace; no center-justified body text.
 - **IDs in examples:** always the canonical prefixes — `mrch_`, `agt_`, `wlt_`, `qt_`,
   `rcpt_`, `pp_` — and the same sample values across docs (`mrch_9f3a1c2b`, `wlt_3a1b`,
   `qt_8d21f0`, `rcpt_7b3e9f21`, `agt_4f9a2c7e`).
-- **Amounts:** decimal **strings** in USD (`"0.04"`), never floats.
+- **Amounts:** decimal **strings** in USD (`"0.00001"`), never floats.
 - **Lint:** every code sample must pass CI checks against OpenAPI (Doc 08) + JSON Schemas
   (Doc 10).
 

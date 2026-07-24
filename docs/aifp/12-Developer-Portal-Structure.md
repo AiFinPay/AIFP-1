@@ -24,7 +24,7 @@ docs.aifinpay.io
 │   ├── HTTP 402 & the Payment Challenge (AIFP-1 §5–6)
 │   ├── Receipts & Stateless Verification (AIFP-1 §7)
 │   ├── Action Pricing & Fees (Standard · Complex · Premium · 1% protocol fee)
-│   ├── Agent Passport, Reputation & Trust (AIFP-1 §38,42)
+│   ├── Agent Passport, Reputation & Trust (AIFP-1 §24, §10.2; Doc 03 §9)
 │   ├── Budgets & Idempotency
 │   └── Settlement & Multi-chain (12 networks)
 ├── Guides

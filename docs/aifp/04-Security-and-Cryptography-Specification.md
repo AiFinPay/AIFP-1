@@ -227,6 +227,8 @@ Claims (AIFP-1 §7.3): `iss, sub, aud, resource, pricing_tier, amount, currency,
 ## 8.2. Verification (normative)
 
 ```python
+from decimal import Decimal
+
 def verify_receipt(token, merchant_id, resource, required_amount, jwks, nonce_seen, mark_nonce):
     header = jwt_header(token)                       # read kid
     key = jwks.get(header["kid"])                    # resolve current key
@@ -235,7 +237,7 @@ def verify_receipt(token, merchant_id, resource, required_amount, jwks, nonce_se
     if claims["iss"] != ISSUER:        raise Reject(422, "bad issuer")
     if claims["aud"] != merchant_id:   raise Reject(403, "wrong audience")
     if claims["resource"] != resource: raise Reject(422, "resource mismatch")
-    if float(claims["amount"]) < float(required_amount): raise Reject(422, "amount low")
+    if Decimal(claims["amount"]) < Decimal(required_amount): raise Reject(422, "amount low")  # decimal, NOT float
     if now() >= claims["exp"] - 0:     raise Reject(402, "expired")   # ≤30s skew allowed
     if nonce_seen(claims["nonce"]):    raise Reject(409, "replay")
     mark_nonce(claims["nonce"], ttl=claims["exp"] - now())
@@ -243,6 +245,8 @@ def verify_receipt(token, merchant_id, resource, required_amount, jwks, nonce_se
 ```
 
 The verification is **pure** except for the nonce store touch. It MUST NOT contact AiFinPay. A failure MUST map to the precise status code so the agent recovers correctly (AIFP-1 §17).
+
+> **Amount comparison MUST use decimal or integer arithmetic, never floating point.** Micropayment amounts have up to 8 decimal places (e.g., `0.00001`); IEEE-754 `float`/`double` cannot represent many such values exactly and a rounding error near a tier boundary can flip the comparison — accepting a receipt for `0.0000099999...` or rejecting a legitimate `0.00001`. Use a decimal type (`decimal.Decimal`, `BigDecimal`, `decimal.Decimal`), or convert to integer minor units (e.g., micro-USD × 10⁸) before comparing.
 
 ## 8.3. CWT/COSE variant
 
@@ -364,6 +368,7 @@ Webhook HMAC secrets and API keys support dual-secret rotation (accept old+new d
 | Gateway | Token-bucket per API key + per IP; `429` + `Retry-After`; `RateLimit-*` headers |
 | Challenge path | Rate-limited to blunt nonce-harvesting and challenge floods |
 | Verify path | Local & cheap by design; not a DoS amplifier (no backend call) |
+| Assisted `/v1/verify` | OPTIONAL fallback only (constrained proxies); aggressive per-key rate limit + `429`; MUST NOT carry routine verification traffic — routing routine verify load to the control plane reintroduces a backend dependency and a DoS amplifier the stateless design exists to eliminate |
 | Pay path | Idempotency + budget caps bound spend even under abuse |
 
 Because verification is local and stateless, a DDoS against merchants cannot be amplified through AiFinPay, and an AiFinPay outage cannot take down merchant verification.
@@ -405,7 +410,7 @@ Because verification is local and stateless, a DDoS against merchants cannot be 
 [ ] Rate limits + WAF on challenge/pay paths
 [ ] Budgets enforced pre-sign; AIFP-403-BUDGET-EXCEEDED on breach
 [ ] Append-only audit log + metrics + alerting wired
-[ ] Degraded mode verified (merchant serves valid receipts during backend outage)
+[ ] Degraded mode verified (merchant serves valid receipts during backend outage; revoked-receipt residual risk bounded by TTL documented)
 ```
 
 ---

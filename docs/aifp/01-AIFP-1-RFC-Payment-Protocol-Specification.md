@@ -161,7 +161,7 @@ An AIFP-1 implementation is designed against eight principles. These are normati
 - **Receipt Token.** A signed, time-bounded cryptographic proof of payment that grants access on retry.
 - **Nonce.** A single-use value embedded in a challenge and receipt to prevent replay.
 - **Free Quota.** The number of requests a merchant serves free before charging (default 100).
-- **Pricing Tier Tier.** A merchant-assigned cost class for a resource: *standard / standard / complex / premium*.
+- **Pricing Tier Tier.** A merchant-assigned cost class for a resource: *standard / complex / premium*.
 - **Settlement.** The act of moving value to the merchant on-chain or via fiat rails.
 - **Stateless Verification.** Local receipt validation by signature, exp, nonce, and amount, with no backend call.
 - **Control Plane / Data Plane.** AiFinPay backend (quoting, payment, receipts) vs. merchant middleware (interception, verification).
@@ -198,6 +198,8 @@ Ed25519 signature verification runs at roughly **50,000 verifications per second
 ## 4.3. Degraded mode
 
 Because verification is local, a merchant MUST continue to honor valid, unexpired receipts **even when the AiFinPay Control Plane is unreachable**. The Data Plane is eventually consistent and MUST keep working in degraded mode. New payments may be unavailable during a Control Plane outage, but already-issued receipts remain valid until expiry.
+
+> **Residual risk (revoked receipts).** During a Control Plane outage the merchant cannot learn of new revocations (Section 7.5). A receipt revoked mid-outage for fraud or chargeback will remain honored until its `exp` (default 600 s). This exposure is bounded by the short receipt TTL. Merchants serving high-value resources SHOULD opt into `425`-then-`200` semantics (Section 19.3) and/or poll a cached, eventually-consistent revocation list with a short interval, falling back to TTL-bounded acceptance only when the list is stale. See the Security Specification §16.
 
 ---
 
@@ -259,7 +261,7 @@ Content-Type: application/json
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.04",
+    "estimated_amount": "0.00001",
     "currency": "USD",
     "accepted_assets": ["USDC", "USDT", "PYUSD"],
     "accepted_chains": ["polygon", "base", "solana", "unichain"],
@@ -278,7 +280,7 @@ Content-Type: application/json
 | `quote_endpoint` | MUST | Where the agent requests a binding quote |
 | `merchant_id` | MUST | Stable merchant identifier `mrch_*` |
 | `resource` | MUST | The protected path/resource |
-| `pricing_tier` | MUST | `standard` \| `standard` \| `complex` \| `premium` |
+| `pricing_tier` | MUST | `standard` \| `complex` \| `premium` |
 | `estimated_amount` | SHOULD | Decimal string, USD-denominated estimate |
 | `currency` | SHOULD | ISO-4217, default `"USD"` |
 | `accepted_assets` | SHOULD | Stablecoins accepted, e.g. `USDC`, `USDT`, `PYUSD` |
@@ -290,8 +292,7 @@ Content-Type: application/json
 
 | Pricing Tier | Price (USD) | Typical use |
 |---|---|---|
-| `standard` | **USD 0.00001** | Cheap reads, key-value lookups |
-| `standard` | **USD 0.00001** | Typical API call, single record |
+| `standard` | **USD 0.00001** | Cheap reads, key-value lookups, single record |
 | `complex` | **USD 0.00006** | Aggregations, search, multi-record |
 | `premium` | **USD 0.00010** | Inference, heavy compute, premium data |
 
@@ -307,7 +308,7 @@ A **Receipt Token** is a signed, time-bounded, audience-bound cryptographic proo
 
 ## 7.2. Encoding
 
-A Receipt Token is a **JWS-signed JWT** (compact serialization) using **EdDSA / Ed25519**. A compact **CBOR-COSE** variant is defined for constrained environments (Section 16.4). Both carry identical claims.
+A Receipt Token is a **JWS-signed JWT** (compact serialization) using **EdDSA / Ed25519**. A compact **CBOR-COSE** variant is defined for constrained environments (Section 16.4); it is a **Future Extension** and not required for AIFP-1 conformance. Both carry identical claims.
 
 ## 7.3. Claims
 
@@ -318,7 +319,7 @@ A Receipt Token is a **JWS-signed JWT** (compact serialization) using **EdDSA / 
   "aud": "mrch_9f3a1c2b",
   "resource": "/api/data",
   "pricing_tier": "standard",
-  "amount": "0.04",
+  "amount": "0.00001",
   "currency": "USD",
   "asset": "USDC",
   "chain": "polygon",
@@ -362,6 +363,8 @@ A merchant MUST verify a receipt locally, with no network call, as follows:
 ```
 
 Steps 1–8 are pure and stateless. Step 9 requires a small, fast **nonce store** (Redis or in-memory with TTL) sized to the receipt TTL window — typically minutes, not forever. See Section 18.5.
+
+> **Normative note on assisted verification.** An OPTIONAL `POST /v1/verify` endpoint exists for constrained edge proxies that cannot perform EdDSA verification locally. Conformant merchants MUST verify receipts locally (this algorithm) and MUST NOT route routine verification traffic through the assisted endpoint, which would reintroduce a backend dependency and a DoS amplifier. The assisted endpoint is rate-limited and intended only as a fallback; see the Security Specification §16.
 
 ## 7.5. Receipt lifecycle
 
@@ -608,7 +611,7 @@ A `402` MUST NOT be a dead end. When an agent does **not** advertise AIFP suppor
              "message": "This resource is monetized via AiFinPay. Your agent does not yet support AIFP." },
   "payment_challenge": { "version": "1.0", "scheme": "aifp", "quote_endpoint": "https://api.aifinpay.io/v1/quote",
     "merchant_id": "mrch_9f3a1c2b", "resource": "/api/data", "pricing_tier": "standard",
-    "estimated_amount": "0.04", "currency": "USD", "nonce": "b7e2...c91a", "expires_at": "2026-06-28T12:34:56Z" },
+    "estimated_amount": "0.00001", "currency": "USD", "nonce": "b7e2...c91a", "expires_at": "2026-06-28T12:34:56Z" },
   "agent_supported": false,
   "onboarding": {
     "what_is_aifinpay": "AiFinPay is an application-layer payment protocol on top of HTTP that lets AI agents automatically pay for access to content and APIs without human involvement.",
@@ -644,7 +647,7 @@ When the agent **does** advertise support (`Accept-Payment: aifp/1.0`), the merc
   "quote_id": "qt_8d21f0",
   "merchant_id": "mrch_9f3a1c2b",
   "resource": "/api/data",
-  "amount": "0.04",
+  "amount": "0.00001",
   "currency": "USD",
   "accepted_assets": ["USDC", "USDT", "PYUSD"],
   "accepted_chains": ["polygon", "base", "solana"],
@@ -668,8 +671,8 @@ When the agent **does** advertise support (`Accept-Payment: aifp/1.0`), the merc
   "receipt": "<JWT EdDSA receipt token>",
   "status": "settled",
   "tx_ref": "0xabc123...",
-  "amount": "0.04",
-  "fee": "0.00012",
+  "amount": "0.00001",
+  "fee": "0.0000001",
   "expires_at": "2026-06-28T12:44:56Z"
 }
 ```
@@ -683,9 +686,11 @@ When the agent **does** advertise support (`Accept-Payment: aifp/1.0`), the merc
 
 Returns the receipt and its status. Used when settlement was async (`202`).
 
-## 16.4. CBOR-COSE receipt (constrained clients)
+## 16.4. CBOR-COSE receipt (constrained clients) — Future Extension
 
-For embedded or bandwidth-constrained agents, a receipt MAY be encoded as a **CBOR Web Token (CWT)** signed with **COSE / EdDSA**. Claim semantics are identical to Section 7.3; the encoding is compact binary. A merchant that advertises `cwt` capability (Section 22) MUST accept either form.
+For embedded or bandwidth-constrained agents, a receipt MAY be encoded as a **CBOR Web Token (CWT)** signed with **COSE / EdDSA**. Claim semantics are identical to Section 7.3; the encoding is compact binary.
+
+> **Status: Future Extension (Section 24).** The CWT/COSE variant is **not required for AIFP-1 conformance**. The capability-negotiation surface (`cty`/`cwt` advertisement, COSE key distribution, conformance vectors) is not yet normatively specified. A merchant that advertises `cwt` capability does so provisionally until the CWT profile is specified via an AIP. Until then, conformant implementations use the JWT (JWS) encoding of Section 7.2.
 
 ## 16.5. Fee model
 
@@ -865,7 +870,7 @@ components:
       properties:
         merchant_id: { type: string }
         resource: { type: string }
-        pricing_tier: { type: string, enum: [standard, standard, complex, premium] }
+        pricing_tier: { type: string, enum: [standard, complex, premium] }
         currency: { type: string, default: USD }
     Quote:
       type: object
@@ -935,7 +940,9 @@ AIFP evolves through an **open RFC process** (`AIFP-N`). Anyone may submit a pro
 
 ## 22.3. Protocol Negotiation Layer
 
-Clients and servers MAY negotiate capabilities (receipt encoding `jwt`/`cwt`, accepted assets/chains, optional features) via capability discovery (`GET /.well-known/aifp`) and request/response headers. A server MUST fall back gracefully to baseline AIFP-1 when a client requests no extensions.
+Clients and servers MAY negotiate capabilities (receipt encoding `jwt`/`cwt`, accepted assets/chains, optional features) via capability discovery and request/response headers. A server MUST fall back gracefully to baseline AIFP-1 when a client requests no extensions.
+
+> **Note:** The `GET /.well-known/aifp` capability-discovery endpoint referenced by earlier drafts is a **Future Extension** (Section 24, Merchant Discovery Registry). It is not required for AIFP-1 conformance and its response schema is not yet normative. Implementations SHOULD rely on header-based negotiation (`Accept-Payment`, `AIFP-Version`) until the discovery endpoint is specified via an AIP.
 
 ---
 
@@ -961,10 +968,11 @@ An implementation claiming **AIFP-1 conformance** MUST satisfy all of the follow
 AIFP-1 is forward-compatible with the following extensions, specified in companion documents and governed by Section 22:
 
 - **Agent Passport** — portable signed agent identity (`agt_*`/`pp_*`), wallet binding, delegated spending.
-- **Merchant Discovery Registry** — a registry and `.well-known` self-description so agents can discover priced resources.
+- **Merchant Discovery Registry** — a registry and `.well-known` self-description so agents can discover priced resources (includes the `GET /.well-known/aifp` endpoint referenced in Section 22.3).
 - **Dynamic Pricing Engine** — rule-based pricing clamped to `[min, max]`, with reputation discounts.
 - **Streaming Payments** — payment channels for continuous/metered access.
 - **Agent Reputation Network** — reputation ∈ [0,1000] and risk ∈ [0,100] influencing pricing and trust.
+- **CWT/COSE receipt encoding** — compact binary receipt variant for constrained clients (Section 16.4); capability negotiation and COSE key distribution to be specified.
 
 None of these are required for AIFP-1 conformance; all are optional and capability-negotiated.
 
@@ -977,7 +985,7 @@ None of these are required for AIFP-1 conformance; all are optional and capabili
 | **AIFP** | AiFinPay Paywall Protocol — this specification. |
 | **Agent** | Autonomous software client that consumes and pays for resources. |
 | **Agent Passport** | Optional signed agent identity credential (`agt_*`/`pp_*`). |
-| **Pricing Tier Tier** | Cost class of a resource: standard/standard/complex/premium. |
+| **Pricing Tier Tier** | Cost class of a resource: standard/complex/premium. |
 | **Control Plane** | AiFinPay backend: quoting, payment, receipts, ledger, webhooks. |
 | **Data Plane** | Merchant middleware: interception, quota, local verification. |
 | **Free Quota** | Free requests served before charging (default 100). |

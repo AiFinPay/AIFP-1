@@ -8,7 +8,7 @@ machine-payable response so AI agents can buy API calls, data, and compute witho
 a human in the loop.
 
 > **The 4-step loop**
-> `402 challenge` → `POST /v1/quote` → `POST /v1/pay` (get receipt) → retry with `X-AIFP-Receipt`.
+> `402 challenge` → `POST /v1/quote` → `POST /v1/pay` (get receipt) → retry with `Payment-Receipt`.
 
 ---
 
@@ -99,7 +99,7 @@ from aifinpay_agent import Agent
 agent = Agent(api_key="sk_test_...", wallet_id="wlt_3a1b")
 
 # The SDK runs the full loop automatically:
-# 402 -> /v1/quote -> /v1/pay -> retry with X-AIFP-Receipt
+# 402 -> /v1/quote -> /v1/pay -> retry with Payment-Receipt
 resp = agent.get("https://merchant.example.com/api/data")
 print(resp.json())          # { "data": "premium payload" }
 print(resp.aifp.receipt_id) # rcpt_7b3e9f21
@@ -111,7 +111,7 @@ print(resp.aifp.receipt_id) # rcpt_7b3e9f21
 GET /api/data                          -> 402 + AIFP challenge (qt url, nonce, from $0.00001)
 POST /v1/quote {merchant,resource}     -> 200 quote_id=qt_8d21f0
 POST /v1/pay   {quote_id,wallet,asset} -> 200 receipt (EdDSA JWT), tx_ref=0xabc...
-GET /api/data  X-AIFP-Receipt: <jwt>   -> 200 payload
+GET /api/data  Payment-Receipt: <jwt>   -> 200 payload
 ```
 
 Set a spend cap so the agent can't overspend (returns `AIFP-403-BUDGET-EXCEEDED`):
@@ -208,7 +208,7 @@ re-run the demo. No code changes.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `402` keeps repeating | Receipt not attached on retry | Send `X-AIFP-Receipt: <jwt>` header |
+| `402` keeps repeating | Receipt not attached on retry | Send `Payment-Receipt: <jwt>` header |
 | `AIFP-422-SIGNATURE` | Wrong JWKS / stale `kid` | Refresh `/.well-known/jwks.json`; check `kid` |
 | `AIFP-403-BUDGET-EXCEEDED` | Spend cap hit | Raise budget or wait for window reset |
 | `AIFP-409` | Reused nonce / idempotency conflict | Get a **fresh** quote; new `Idempotency-Key` |

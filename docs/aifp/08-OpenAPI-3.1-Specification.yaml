@@ -17,13 +17,12 @@ info:
        with an AIFP Payment Challenge.
     2. Agent requests a `POST /v1/quote`.
     3. Agent pays via `POST /v1/pay` (idempotent) and receives an Ed25519 JWT receipt.
-    4. Agent retries the original request with `X-AIFP-Receipt: <jwt>`. Merchant
+    4. Agent retries the original request with `Payment-Receipt: <jwt>`. Merchant
        verifies the receipt **statelessly** and serves `200`.
 
     ## Pricing (canonical)
     | Pricing Tier | Price (USD) |
     |---|---|
-    | standard | USD 0.00001 |
     | standard | USD 0.00001 |
     | complex | USD 0.00006 |
     | premium | USD 0.00010 |
@@ -107,12 +106,12 @@ paths:
                     quote_id: qt_8d21f0
                     merchant_id: mrch_9f3a1c2b
                     resource: /api/data
-                    amount: "0.04"
+                    amount: "0.00001"
                     currency: USD
                     accepted_assets: [USDC, USDT, PYUSD]
                     accepted_chains: [polygon, base, solana]
                     pay_to: { polygon: "0xMerchant...", solana: "Merc...111" }
-                    nonce: b7e2...c91a
+                    nonce: b7e2a1f3c91a4d6e8b0c2f4a6d8e0f2c
                     expires_at: "2026-06-28T12:39:56Z"
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -158,8 +157,8 @@ paths:
                     receipt: <JWT EdDSA receipt token>
                     status: settled
                     tx_ref: "0xabc123..."
-                    amount: "0.04"
-                    fee: "0.00012"
+                    amount: "0.00001"
+                    fee: "0.0000001"
                     expires_at: "2026-06-28T12:44:56Z"
         '202':
           description: Accepted; settlement is asynchronous.
@@ -209,12 +208,23 @@ paths:
     post:
       tags: [Verification]
       operationId: verifyReceipt
-      summary: Assisted receipt verification (optional)
+      summary: Assisted receipt verification (optional fallback)
       description: |
-        Merchants SHOULD verify receipts **locally and statelessly** (AIFP-1 §7.4).
-        This endpoint is an OPTIONAL assisted check for clients that cannot perform
-        EdDSA verification locally (e.g., constrained edge proxies). It performs the
-        full AIFP-1 §7.4 algorithm and returns the decision.
+        **Conformant merchants MUST verify receipts locally and statelessly
+        (AIFP-1 §7.4).** This endpoint is an OPTIONAL fallback ONLY for
+        constrained edge proxies that cannot perform EdDSA verification
+        locally (e.g., legacy NGINX/Apache without a native crypto module).
+
+        Routine verification traffic MUST NOT be routed through this
+        endpoint — doing so reintroduces a backend dependency and creates a
+        DoS amplifier (AIFP Security Spec §16). This endpoint is subject to
+        aggressive per-key rate limiting and returns `429` when the limit is
+        exceeded. Merchants that use it SHOULD delegate to a local verifier
+        sidecar instead (see Merchant Integration Guide §6.13–6.14).
+
+        Performs the full AIFP-1 §7.4 algorithm (including the amount check)
+        and returns the decision. The caller MUST supply the resource's
+        current required price so the server can perform step 8.
       security:
         - ApiKeyAuth: []
       requestBody:
@@ -228,7 +238,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VerifyResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /.well-known/jwks.json:
     get:
@@ -289,7 +302,7 @@ paths:
       tags: [Merchant]
       operationId: setMerchantResources
       summary: Configure resource pricing for a merchant
-      description: Map resource paths to pricing_tier tiers (standard/standard/complex/premium).
+      description: Map resource paths to pricing_tier tiers (standard/complex/premium).
       security:
         - ApiKeyAuth: []
       parameters:
@@ -521,9 +534,9 @@ components:
   schemas:
     PricingTier:
       type: string
-      enum: [standard, standard, complex, premium]
+      enum: [standard, complex, premium]
       description: |
-        Pricing tier. standard=USD 0.00001, standard=USD 0.00001, complex=USD 0.00006, premium=USD 0.00010.
+        Pricing tier. standard=USD 0.00001, complex=USD 0.00006, premium=USD 0.00010.
     Asset:
       type: string
       enum: [USDC, USDT, PYUSD]
@@ -537,7 +550,7 @@ components:
 
     QuoteRequest:
       type: object
-      required: [merchant_id, resource]
+      required: [merchant_id, resource, pricing_tier]
       properties:
         merchant_id: { type: string, pattern: '^mrch_[A-Za-z0-9]+$' }
         resource: { type: string, example: /api/data }
@@ -550,7 +563,7 @@ components:
         quote_id: { type: string, pattern: '^qt_[A-Za-z0-9]+$' }
         merchant_id: { type: string }
         resource: { type: string }
-        amount: { type: string, description: "Decimal string in the quote currency.", example: "0.04" }
+        amount: { type: string, description: "Decimal string in the quote currency.", example: "0.00001" }
         currency: { type: string, example: USD }
         accepted_assets:
           type: array
@@ -562,7 +575,7 @@ components:
           type: object
           additionalProperties: { type: string }
           description: Map of chain → settlement address.
-        nonce: { type: string, description: Single-use anti-replay value. }
+        nonce: { type: string, minLength: 22, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$', description: "Single-use anti-replay value, >=128 bits entropy." }
         expires_at: { type: string, format: date-time }
 
     PayRequest:
@@ -581,8 +594,8 @@ components:
         receipt: { type: string, description: Compact Ed25519 JWT receipt token. }
         status: { type: string, enum: [settled, settling, expired, revoked] }
         tx_ref: { type: string, description: On-chain tx hash or fiat reference. }
-        amount: { type: string, example: "0.04" }
-        fee: { type: string, example: "0.00012" }
+        amount: { type: string, example: "0.00001" }
+        fee: { type: string, example: "0.0000001" }
         expires_at: { type: string, format: date-time }
     SettlingReceipt:
       type: object
@@ -608,18 +621,26 @@ components:
         chain: { $ref: '#/components/schemas/Chain' }
         tx_ref: { type: string }
         receipt_id: { type: string }
-        nonce: { type: string }
+        nonce: { type: string, minLength: 22, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$', description: "Single-use anti-replay value, >=128 bits entropy." }
         iat: { type: integer }
         exp: { type: integer, description: TTL default 600s. }
         kid: { type: string, example: aifp-2026-06 }
+        quota: { type: integer, minimum: 1, description: "Optional multi-use claim (AIFP-1 §7.5). Grants `quota` redemptions for the same resource within TTL." }
 
     VerifyRequest:
       type: object
-      required: [receipt, merchant_id, resource]
+      required: [receipt, merchant_id, resource, required_amount]
       properties:
         receipt: { type: string, description: Compact JWT. }
         merchant_id: { type: string }
         resource: { type: string }
+        required_amount:
+          type: string
+          description: |
+            The resource's current required price (decimal USD string). The
+            server performs the full AIFP-1 §7.4 step-8 amount check
+            (`amount >= required_amount`). Without this value the amount
+            check cannot be performed and a low-amount receipt could pass.
     VerifyResult:
       type: object
       required: [valid]
@@ -731,7 +752,7 @@ components:
       type: object
       properties:
         migration_id: { type: string }
-        migration_program: { type: string, description: Optional program metadata, if a public migration program is active. }
+        migration_program: { type: string, description: "Optional program metadata, if a public migration program is active." }
         status: { type: string, enum: [active] }
 
     Error:

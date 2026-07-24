@@ -19,7 +19,7 @@ Each schema below is independently publishable as a `.json` file under the `$id`
 | Receipt (envelope) | `receipt.json` | AIFP-1 §16.2 |
 | Merchant | `merchant.json` | AIFP-1 §11 |
 | Wallet | `wallet.json` | AIFP-1 §13 |
-| Passport | `passport.json` | AIFP-1 §38 |
+| Passport | `passport.json` | AIFP-1 §24, §10.2; Doc 03 §9 |
 | Payment | `payment.json` | AIFP-1 §16.2 |
 | Settlement | `settlement.json` | AIFP-1 §19 |
 | Webhook | `webhook.json` | AIFP-1 §9.4 |
@@ -72,13 +72,21 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
       "type": "string",
       "enum": ["solana", "polygon", "avalanche", "bnb", "optimism", "arbitrum", "base", "unichain", "bot_chain", "xrpl_evm", "near", "aptos"]
     },
-    "decimalUsd": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2,8}$", "examples": ["0.00001", "0.00006", "0.00010"] },
+    "decimalUsd": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2,8}$", "examples": ["0.00001", "0.00006", "0.00010"], "description": "Per-request micropayment amount (2-8 fractional digits, no whole-dollar form)." },
+    "monetaryUsd": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,8})?$", "examples": ["0.00001", "50.00", "100", "5"], "description": "Larger monetary value (settlement, payout, budget cap). Allows whole-dollar amounts; fractional part optional, 1-8 digits." },
     "merchantId": { "type": "string", "pattern": "^mrch_[A-Za-z0-9]+$" },
     "agentId": { "type": "string", "pattern": "^agt_[A-Za-z0-9]+$" },
     "walletId": { "type": "string", "pattern": "^wlt_[A-Za-z0-9]+$" },
     "quoteId": { "type": "string", "pattern": "^qt_[A-Za-z0-9]+$" },
     "receiptId": { "type": "string", "pattern": "^rcpt_[A-Za-z0-9]+$" },
-    "passportId": { "type": "string", "pattern": "^pp_[A-Za-z0-9]+$" }
+    "passportId": { "type": "string", "pattern": "^pp_[A-Za-z0-9]+$" },
+    "nonce": {
+      "type": "string",
+      "minLength": 22,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "description": "Single-use anti-replay value, >=128 bits entropy from a CSPRNG (AIFP-1 §6.4, §18.3). Minimum 22 chars (base64url of 128 bits) or 32 chars (hex of 128 bits). The nonce MUST be identical across the challenge, quote, and receipt."
+    }
   }
 }
 ```
@@ -94,19 +102,20 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
   "title": "AIFP Payment Challenge",
   "description": "Body returned with HTTP 402 (AIFP-1 §6).",
   "type": "object",
-  "required": ["aifp_version", "merchant_id", "resource", "pricing_tier", "amount", "currency", "nonce", "expires_at", "quote_url"],
+  "required": ["version", "scheme", "merchant_id", "resource", "pricing_tier", "currency", "nonce", "expires_at", "quote_endpoint"],
   "properties": {
-    "aifp_version": { "type": "string", "const": "1.0" },
+    "version": { "type": "string", "const": "1.0" },
+    "scheme": { "type": "string", "const": "aifp" },
     "merchant_id": { "$ref": "common.json#/$defs/merchantId" },
     "resource": { "type": "string" },
     "pricing_tier": { "$ref": "common.json#/$defs/pricingTier" },
-    "amount": { "$ref": "common.json#/$defs/decimalUsd" },
+    "estimated_amount": { "$ref": "common.json#/$defs/decimalUsd", "description": "Decimal USD estimate (SHOULD; not binding — use /quote for a binding amount)." },
     "currency": { "type": "string", "const": "USD" },
     "accepted_assets": { "type": "array", "items": { "$ref": "common.json#/$defs/asset" } },
     "accepted_chains": { "type": "array", "items": { "$ref": "common.json#/$defs/chain" } },
-    "nonce": { "type": "string" },
+    "nonce": { "$ref": "common.json#/$defs/nonce" },
     "expires_at": { "type": "string", "format": "date-time" },
-    "quote_url": { "type": "string", "format": "uri-reference", "const": "/v1/quote" },
+    "quote_endpoint": { "type": "string", "format": "uri", "description": "Where the agent requests a binding quote (AIFP-1 §6)." },
     "onboarding": { "type": "boolean", "default": false, "description": "true -> AIFP-402-ONBOARDING" }
   },
   "additionalProperties": false
@@ -134,7 +143,7 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     "accepted_assets": { "type": "array", "items": { "$ref": "common.json#/$defs/asset" } },
     "accepted_chains": { "type": "array", "items": { "$ref": "common.json#/$defs/chain" } },
     "pay_to": { "type": "object", "additionalProperties": { "type": "string" } },
-    "nonce": { "type": "string" },
+    "nonce": { "$ref": "common.json#/$defs/nonce" },
     "expires_at": { "type": "string", "format": "date-time" }
   },
   "additionalProperties": false
@@ -165,10 +174,11 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     "chain": { "$ref": "common.json#/$defs/chain" },
     "tx_ref": { "type": "string" },
     "receipt_id": { "$ref": "common.json#/$defs/receiptId" },
-    "nonce": { "type": "string" },
+    "nonce": { "$ref": "common.json#/$defs/nonce" },
     "iat": { "type": "integer" },
     "exp": { "type": "integer", "description": "Default TTL 600s after iat." },
-    "kid": { "type": "string", "examples": ["aifp-2026-06"] }
+    "kid": { "type": "string", "examples": ["aifp-2026-06"] },
+    "quota": { "type": "integer", "minimum": 1, "description": "Optional multi-use claim (AIFP-1 §7.5). When present, the receipt grants `quota` redemptions for the same resource within its TTL; the nonce is consumed on the final use. Absent = single-use (default)." }
   },
   "additionalProperties": false
 }
@@ -193,8 +203,8 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     "amount": { "$ref": "common.json#/$defs/decimalUsd" },
     "protocol_fee_rate": { "$ref": "common.json#/$defs/protocolFeeRate" },
     "merchant_settlement_rate": { "$ref": "common.json#/$defs/merchantSettlementRate" },
-    "protocol_fee_amount": { "$ref": "common.json#/$defs/decimalUsd" },
-    "merchant_settlement_amount": { "$ref": "common.json#/$defs/decimalUsd" },
+    "protocol_fee_amount": { "$ref": "common.json#/$defs/monetaryUsd" },
+    "merchant_settlement_amount": { "$ref": "common.json#/$defs/monetaryUsd" },
     "expires_at": { "type": "string", "format": "date-time" },
     "poll": { "type": "string", "description": "Present on 202 async settlement." }
   },
@@ -246,7 +256,7 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
       "type": "object",
       "properties": {
         "window": { "type": "string", "enum": ["hour", "day", "week", "month"] },
-        "cap_usd": { "$ref": "common.json#/$defs/decimalUsd" }
+        "cap_usd": { "$ref": "common.json#/$defs/monetaryUsd" }
       }
     }
   },
@@ -337,7 +347,7 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     "id": { "type": "string", "examples": ["evt_2a9f"] },
     "type": {
       "type": "string",
-      "enum": ["receipt.settled", "receipt.expired", "receipt.revoked", "payment.failed", "passport.updated"]
+      "enum": ["payment.succeeded", "payment.pending", "payment.failed", "receipt.issued", "receipt.redeemed", "receipt.expired", "receipt.revoked", "settlement.completed", "payout.completed", "dispute.opened", "passport.updated"]
     },
     "created": { "type": "integer" },
     "data": { "type": "object" }
@@ -346,7 +356,7 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
 }
 ```
 
-> **Signature:** Webhook deliveries carry `X-AIFP-Signature` (Ed25519 over the raw body). Verify against the JWKS `kid` before trusting the payload.
+> **Signature:** Webhook deliveries carry `AIFP-Signature: t=<ts>,v1=<hmac>` (**HMAC-SHA256** over the raw body, using a per-merchant shared secret). Verify the HMAC and the timestamp (5-minute replay window) before trusting the payload. This is a symmetric signature — merchants do NOT need to fetch JWKS to verify webhooks (AIFP-1 §9.4, §18.4).
 
 ---
 

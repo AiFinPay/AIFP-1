@@ -259,7 +259,7 @@ itemized on the receipt.
 `AIFP-403-BUDGET-EXCEEDED` for budget policy breaches.
 
 **8.8. Identity, reputation, budgets, discovery, streaming, negotiation, governance.**
-Extension layers (AIFP-1 §38–44): Agent Passport, Merchant Discovery Registry, Dynamic
+Extension layers (AIFP-1 §24, §10.2): Agent Passport, Merchant Discovery Registry, Dynamic
 Pricing Engine, Streaming Payments (mSECCO channels), Agent Reputation Network, Protocol
 Negotiation Layer, and Open Governance.
 
