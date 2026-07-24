@@ -70,17 +70,18 @@ The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **
 11. [Merchant Flow](#11-merchant-flow)
 12. [Agent Flow](#12-agent-flow)
 13. [Wallet Flow](#13-wallet-flow)
-14. [x402 Compatibility & Migration](#14-x402-compatibility--migration)
+14. [x402 Primary Payment Protocol](#14-x402-primary-payment-protocol)
 15. [Onboarding Flow](#15-onboarding-flow)
 16. [Message Formats](#16-message-formats)
 17. [Error Codes & Retry Strategy](#17-error-codes--retry-strategy)
 18. [Security Model & Threat Model](#18-security-model--threat-model)
 19. [Settlement, Multi-chain & Fiat](#19-settlement-multi-chain--fiat)
-20. [State Machines](#20-state-machines)
-21. [OpenAPI & API Examples](#21-openapi--api-examples)
-22. [Open Governance & Versioning](#22-open-governance--versioning)
-23. [Normative Requirements Summary](#23-normative-requirements-summary)
-24. [Future Extensions](#24-future-extensions)
+20. [Cross-Agent Payments via ACP](#20-cross-agent-payments-via-acp)
+21. [State Machines](#21-state-machines)
+22. [OpenAPI & API Examples](#22-openapi--api-examples)
+23. [Open Governance & Versioning](#23-open-governance--versioning)
+24. [Normative Requirements Summary](#24-normative-requirements-summary)
+25. [Future Extensions](#25-future-extensions)
 - [Appendix A. Glossary](#appendix-a-glossary)
 - [Appendix B. Supported Networks](#appendix-b-supported-networks)
 - [Appendix C. Complete Error Registry](#appendix-c-complete-error-registry)
@@ -161,7 +162,7 @@ An AIFP-1 implementation is designed against eight principles. These are normati
 - **Receipt Token.** A signed, time-bounded cryptographic proof of payment that grants access on retry.
 - **Nonce.** A single-use value embedded in a challenge and receipt to prevent replay.
 - **Free Quota.** The number of requests a merchant serves free before charging (default 100).
-- **Pricing Tier Tier.** A merchant-assigned cost class for a resource: *standard / complex / premium*.
+- **Pricing Tier.** A merchant-assigned cost class for a resource: *standard / complex / premium*.
 - **Settlement.** The act of moving value to the merchant on-chain or via fiat rails.
 - **Stateless Verification.** Local receipt validation by signature, exp, nonce, and amount, with no backend call.
 - **Control Plane / Data Plane.** AiFinPay backend (quoting, payment, receipts) vs. merchant middleware (interception, verification).
@@ -601,15 +602,58 @@ A wallet is funded on-chain (stablecoin deposit) or via fiat top-up. Each wallet
 
 ---
 
-# 14. x402 Compatibility & Migration
+# 14. x402 Primary Payment Protocol
 
-## 14.1. Compatibility
+## 14.1. x402 as Primary Transport
 
-AIFP-1 is designed to interoperate with the **x402** ecosystem, which also builds on `402 Payment Required`. AIFP advertises support via `Accept-Payment: aifp/1.0` and the `WWW-Authenticate: AIFP ...` header (Section 6.2). A merchant MAY accept both x402 and AIFP challenges on the same endpoint; an agent MAY negotiate the scheme via the Protocol Negotiation Layer (Section 22.3).
+AIFP-1 is built on the **x402** payment model, which activates the HTTP
+`402 Payment Required` status code as a machine-payable handshake. Every
+payment interaction in AIFP follows the x402 flow:
 
-## 14.2. Migration
+1. Merchant returns `402 Payment Required` with a machine-readable
+   Payment Challenge
+2. Agent requests a quote and receives a binding price
+3. Agent pays through the AiFinPay gateway
+4. Agent receives a signed Receipt Token
+5. Agent retries the original request with the receipt attached
+6. Merchant verifies the receipt locally and grants access
 
-An agent that already supports x402 can migrate to AIFP through the migration endpoint. The endpoint exchanges an existing x402 identity for an AIFP agent identity and wallet binding, preserving the agent's request flow. After migration, the agent uses AIFP receipts and gains access to budgets, multi-chain routing, and (optionally) an Agent Passport.
+The x402 challenge is carried in two forms:
+
+- **Header form** (x402-compatible): `WWW-Authenticate: x402 ...` +
+  `Accept-Payment: x402/1.0`
+- **Body form** (canonical): JSON `payment_challenge` object in the
+  `402` response body (Section 6.3)
+
+Agents advertise x402 support via `Accept-Payment: x402/1.0`. Merchants
+MUST return `402` with a conformant x402 challenge when this header is
+present and quota is exhausted.
+
+## 14.2. AIFP Extensions over x402
+
+AIFP extends the base x402 model with:
+
+| Extension | Description |
+|---|---|
+| **Ed25519 receipt signing** | Cryptographic proof of payment, verifiable locally without backend calls. |
+| **Multi-chain settlement** | Stablecoin payouts across 12 supported networks. |
+| **Hybrid fiat settlement** | Regulated fiat rails for enterprise merchants. |
+| **Agent budgets** | Per-window, per-request, and per-merchant spend caps. |
+| **Agent Passport** | Portable signed identity with reputation and delegation. |
+| **Webhook lifecycle** | Signed event notifications for payment state changes. |
+| **ACP (Agent Communication Protocol)** | Agent-to-agent structured messaging with integrated payments. |
+
+The core x402 flow remains unchanged. AIFP adds receipt signing,
+settlement, and agent features on top of the same HTTP 402 handshake.
+
+## 14.3. Migration from Legacy x402
+
+An agent that already supports legacy x402 (pre-AIFP) can migrate to
+AIFP through the migration endpoint. The endpoint exchanges an existing
+x402 identity for an AIFP agent identity and wallet binding, preserving
+the agent's request flow. After migration, the agent uses AIFP-signed
+receipts and gains access to budgets, multi-chain routing, and
+(optionally) an Agent Passport.
 
 ```http
 POST /v1/migrate/x402
@@ -629,7 +673,30 @@ Content-Type: application/json
 { "agent_id": "agt_4f9a2c7e", "wallet_id": "wlt_...", "migration_program": "public-preview", "migrated": true }
 ```
 
-> **Proof-of-possession required.** The migration MUST verify that the caller controls the `x402_identity` private key: the server issues a Per-request `x402_challenge` and the client returns `x402_signature` (over the canonical x402 challenge bytes) produced by the `x402_identity` key. The server verifies the signature against the public key embedded in the supplied `x402_identity` credential (e.g., a DID or signed JWT issued by the x402 controller). Without this check, a stolen `x402_identity` string could be migrated by an attacker who does not hold the corresponding private key. **Migration returned 422 / `AIFP-401` if signature verification fails.**
+> **Proof-of-possession required.** The migration MUST verify that the
+> caller controls the `x402_identity` private key: the server issues a
+> per-request `x402_challenge` and the client returns `x402_signature`
+> (over the canonical x402 challenge bytes) produced by the
+> `x402_identity` key. The server verifies the signature against the
+> public key embedded in the supplied `x402_identity` credential (e.g.,
+> a DID or signed JWT issued by the x402 controller). Without this
+> check, a stolen `x402_identity` string could be migrated by an
+> attacker who does not hold the corresponding private key.
+> **Migration returned 422 / `AIFP-401` if signature verification fails.**
+
+## 14.4. Dual-Mode Endpoints
+
+A merchant MAY accept both legacy x402 and AIFP-signed receipts on the
+same endpoint. The agent negotiates the scheme via the Protocol
+Negotiation Layer (Section 22.3):
+
+- Agent sends `Accept-Payment: x402/1.0` → receives x402 challenge
+- Agent sends `Accept-Payment: aifp/1.0` → receives AIFP challenge
+- Agent sends both → merchant chooses preferred scheme
+
+Legacy x402 receipts (without Ed25519 signatures) MUST be verified
+through the assisted `/v1/verify` endpoint. AIFP-signed receipts MUST
+be verified locally by signature (Section 7.4).
 
 ---
 
@@ -861,13 +928,137 @@ A merchant MUST NOT require settlement *confirmation* before accepting a receipt
 
 ---
 
-# 20. State Machines
+# 20. Cross-Agent Payments via ACP
 
-The protocol's three core state machines — **Merchant** (Section 11), **Agent** (Section 12), and **Settlement** (Section 19.3) — together with the **Receipt lifecycle** (Section 7.5) fully describe AIFP-1 behavior. An implementation MUST NOT introduce states that allow value transfer without a corresponding receipt, nor resource access without receipt verification.
+## 17.1. Purpose
+
+AIFP-1 enables **agent-to-agent payments** through the Agent
+Communication Protocol (ACP, Doc 16). An agent that provides a
+billable service (search, retrieval, inference, data enrichment) acts
+as a merchant; an agent that consumes the service acts as a payer. The
+payment flow is identical to HTTP/x402: challenge → quote → pay →
+receipt → retry.
+
+## 17.2. Agent as Merchant
+
+Any agent with a funded wallet and a published capability set
+(`/.well-known/agent.json`, Doc 16 §3) MAY receive payments:
+
+- The agent's `agent_id` serves as `merchant_id` in receipts
+- The agent verifies receipts locally (same algorithm as §7.4)
+- The agent's wallet receives the settlement payout
+- The agent enforces free quota and pricing tiers
+
+## 17.3. Cross-Agent Payment Flow
+
+```
+Agent A (payer)                    Agent B (payee/merchant)
+   |                                        |
+   |-- ACP Request (action, resource) ----->|
+   |                                        |-- check quota
+   |                                        |-- quota exhausted
+   |<-- ACP Challenge (x402 payload) -------|
+   |                                        |
+   |-- POST /v1/quote ----------------------|--> AiFinPay Gateway
+   |<-- Quote ------------------------------|<--
+   |                                        |
+   |-- POST /v1/pay ------------------------|--> AiFinPay Gateway
+   |    (Idempotency-Key)                   |
+   |<-- Receipt Token ----------------------|<--
+   |                                        |
+   |-- ACP Payment (receipt + request) ---->|
+   |                                        |-- verify receipt locally
+   |                                        |-- consume nonce
+   |<-- ACP Response (result data) ---------|
+```
+
+| Step | Actor | Action |
+|---|---|---|
+| 1 | Agent A | Send ACP `request` message |
+| 2 | Agent B | Check quota; if exhausted, return `challenge` |
+| 3 | Agent A | Request quote from AiFinPay gateway |
+| 4 | Agent A | Pay via `/v1/pay` with idempotency key |
+| 5 | Agent A | Send ACP `payment` message with receipt |
+| 6 | Agent B | Verify receipt locally (Ed25519, §7.4) |
+| 7 | Agent B | Return ACP `response` with result data |
+
+## 17.4. Receipt Claims for Cross-Agent Payments
+
+Cross-agent receipts carry the same claims as HTTP receipts, with
+additional context:
+
+| Claim | Description |
+|---|---|
+| `iss` | AiFinPay receipt authority |
+| `aud` | Agent B's `agent_id` (acts as merchant) |
+| `resource` | The ACP action and resource path |
+| `amount` | Payment amount in USD |
+| `pricing_tier` | `standard`, `complex`, or `premium` |
+| `nonce` | Single-use anti-replay value |
+| `payer_agent_id` | Agent A's `agent_id` |
+| `payee_agent_id` | Agent B's `agent_id` (same as `aud`) |
+| `tx_ref` | On-chain tx hash or fiat settlement reference |
+| `receipt_id` | Unique receipt identifier |
+| `iat` | Issued-at timestamp |
+| `exp` | Expiry timestamp (default TTL 600 s) |
+
+## 17.5. Multi-Agent Chains
+
+An agent MAY delegate work to other agents and chain payments:
+
+```
+Agent A → Agent B → Agent C
+```
+
+In this model:
+- Agent A pays Agent B for the aggregated result
+- Agent B pays Agent C for the sub-task
+- Each hop uses its own receipt and nonce
+- Agent B MAY add a markup (defined in its pricing policy)
+
+The chain MUST NOT exceed **5 levels** of delegation (Doc 16 §4.4).
+
+## 17.6. Security Requirements
+
+Cross-agent payments MUST satisfy the same security requirements as
+HTTP/x402 payments:
+
+1. **Receipt verification** — Ed25519 signature, audience, resource,
+   amount, expiry, nonce (all checks from §7.4)
+2. **Nonce atomicity** — linearizable `SET NX EX` or equivalent
+3. **Budget enforcement** — atomic check-and-deduct before payment
+4. **Identity verification** — ACP message signatures (Doc 16 §4)
+5. **Replay protection** — 30s timestamp window + message ID tracking
+6. **Transport security** — TLS 1.3 for HTTP, encrypted channels for
+   P2P
+
+## 17.7. Fallback to HTTP/x402
+
+Agents that do not support ACP MUST still accept HTTP/x402 payments.
+The fallback flow is:
+
+1. Agent A sends HTTP request to Agent B
+2. Agent B returns HTTP `402` with x402 challenge
+3. Agent A pays and retries with `Payment-Receipt` header
+4. Agent B verifies and responds with HTTP `200`
+
+The receipt format and verification algorithm are identical for both
+ACP and HTTP transports.
 
 ---
 
-# 21. OpenAPI & API Examples
+# 21. State Machines
+
+The protocol's four core state machines — **Merchant** (Section 11),
+**Agent** (Section 12), **Settlement** (Section 19.3), and **Cross-Agent
+ACP** (Section 17.3) — together with the **Receipt lifecycle**
+(Section 7.5) fully describe AIFP-1 behavior. An implementation MUST
+NOT introduce states that allow value transfer without a corresponding
+receipt, nor resource access without receipt verification.
+
+---
+
+# 22. OpenAPI & API Examples
 
 ## 21.1. OpenAPI 3.1 (excerpt)
 
@@ -971,7 +1162,7 @@ curl -i https://merchant.example.com/api/data \
 
 ---
 
-# 22. Open Governance & Versioning
+# 23. Open Governance & Versioning
 
 ## 22.1. Governance
 
@@ -991,7 +1182,7 @@ Clients and servers MAY negotiate capabilities (receipt encoding `jwt`/`cwt`, ac
 
 ---
 
-# 23. Normative Requirements Summary
+# 24. Normative Requirements Summary
 
 An implementation claiming **AIFP-1 conformance** MUST satisfy all of the following:
 
@@ -1008,7 +1199,7 @@ An implementation claiming **AIFP-1 conformance** MUST satisfy all of the follow
 
 ---
 
-# 24. Future Extensions
+# 25. Future Extensions
 
 AIFP-1 is forward-compatible with the following extensions, specified in companion documents and governed by Section 22:
 
@@ -1030,7 +1221,7 @@ None of these are required for AIFP-1 conformance; all are optional and capabili
 | **AIFP** | AiFinPay Paywall Protocol — this specification. |
 | **Agent** | Autonomous software client that consumes and pays for resources. |
 | **Agent Passport** | Optional signed agent identity credential (`agt_*`/`pp_*`). |
-| **Pricing Tier Tier** | Cost class of a resource: standard/complex/premium. |
+| **Pricing Tier** | Cost class of a resource: standard/complex/premium. |
 | **Control Plane** | AiFinPay backend: quoting, payment, receipts, ledger, webhooks. |
 | **Data Plane** | Merchant middleware: interception, quota, local verification. |
 | **Free Quota** | Free requests served before charging (default 100). |

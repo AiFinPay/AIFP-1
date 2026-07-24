@@ -9,6 +9,7 @@ Welcome to the AiFinPay Paywall documentation portal. This is the public entry p
 | New developer | [Quick Start](quickstart/index.md) | Understand the end-to-end HTTP 402 flow |
 | Merchant engineer | [Merchant Guide](merchant.md) -> [Integration Guide](aifp/02-Merchant-Integration-Guide.md) | Protect a route and verify receipts |
 | Agent builder | [Agent Guide](agent.md) -> [Agent SDK Spec](aifp/03-AI-Agent-SDK-Specification.md) | Pay automatically within budget policy |
+| Agent protocol engineer | [ACP Spec](aifp/16-Agent-Communication-Protocol-Specification.md) | Agent-to-agent messaging and cross-agent payments |
 | Wallet/platform engineer | [Wallet Guide](wallet.md) -> [Security Spec](aifp/04-Security-and-Cryptography-Specification.md) | Bind wallets and enforce settlement policy |
 | Protocol implementer | [AIFP-1 RFC](aifp/01-AIFP-1-RFC-Payment-Protocol-Specification.md) | Implement the normative protocol |
 | API tooling | [OpenAPI 3.1](aifp/08-OpenAPI-3.1-Specification.yaml) + [JSON Schemas](aifp/10-JSON-Schemas.md) | Generate clients and validators |
@@ -45,6 +46,17 @@ flowchart LR
     F --> G["Merchant verifies receipt locally"]
     G --> H["Access granted"]
 ```
+
+## Real-World Use Cases
+
+| Use case | How AIFP is used |
+|---|---|
+| Paid data APIs | Agents buy individual records or pages after free quota, then retry with `Payment-Receipt`. |
+| RAG and research agents | Pipelines pay for search, enrichment, and premium corpus access within budget policy. |
+| AI inference and compute | Merchants price GPU/model calls as `premium` and use async settlement for high-value jobs. |
+| Licensed crawler access | Crawlers present Passport for reputation and pay instead of being blocked by WAF rules. |
+| Webhook reconciliation | Merchants verify signed lifecycle events and reconcile settlement, payout, and dispute records. |
+| Cross-agent payments | Agent A pays Agent B for search, retrieval, or inference via ACP messages and x402 receipts. |
 
 ## Canonical Documents
 

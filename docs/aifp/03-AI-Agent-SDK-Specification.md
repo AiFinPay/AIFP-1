@@ -269,7 +269,7 @@ If no funded chain matches the challenge, the SDK raises `NoRouteError` and surf
 
 ## 9.1. Agent ID
 
-Every request carries `AIFP-Agent-ID: agt_*`. This is the minimum identity and is sufficient for anonymous-but-funded payment.
+Every request carries `AIFP-Agent-ID: agt_*`. This is a routing and observability hint for anonymous-but-funded payment, not an authenticated identity. Merchants and wallets MUST NOT bind budgets, reputation, durable free quota, or trust decisions to this header unless a valid Agent Passport also authenticates the `agt_*` value.
 
 ## 9.2. Agent Passport
 
@@ -294,7 +294,7 @@ The **Agent Passport** is an optional, portable, Ed25519-signed identity credent
 - **Delegated spending:** an owner (org/parent agent) can issue scoped, time-bounded delegations so sub-agents pay within limits.
 - **Reputation / trust:** `reputation ∈ [0,1000]` (start 500), `risk ∈ [0,100]`, trust levels `untrusted | basic | verified | enterprise`. Merchants MAY use these for dynamic pricing or access. (Reputation network detail is governed by AIFP-1 §24 future extensions; security in Doc 4.)
 
-The Passport is OPTIONAL for AIFP-1 conformance — an agent MAY pay with only a funded wallet.
+The Passport is OPTIONAL for anonymous AIFP-1 payment — an agent MAY pay with only a funded wallet. Passport is REQUIRED when the SDK uses identity-bound budgets, reputation, durable free quota, or delegated sub-agent authority.
 
 ---
 

@@ -246,7 +246,7 @@ def verify_receipt(token, merchant_id, resource, required_amount, jwks, nonce_se
     if claims["aud"] != merchant_id:   raise Reject(403, "wrong audience")
     if claims["resource"] != resource: raise Reject(422, "resource mismatch")
     if Decimal(claims["amount"]) < Decimal(required_amount): raise Reject(422, "amount low")  # decimal, NOT float
-    if now() >= claims["exp"] - 0:     raise Reject(402, "expired")   # ≤30s skew allowed
+    if now() >= claims["exp"] + 5:     raise Reject(402, "expired")   # ≤5s skew allowed
     if nonce_seen(claims["nonce"]):    raise Reject(409, "replay")
     mark_nonce(claims["nonce"], ttl=claims["exp"] - now())
     return claims
@@ -260,7 +260,7 @@ The verification is **pure** except for the nonce store touch. It MUST NOT conta
 
 For constrained agents, the same claim set is encoded as a CBOR Web Token signed with COSE/EdDSA. Verification is identical in logic; the merchant selects the codec by `cty`/capability negotiation.
 
-> **Codec negotiation (Future Extension, normative when implemented).** When the CWT/COSE variant becomes normative, it MUST be negotiated per-request via explicit `Accept` request headers (e.g., `Accept: application/jwt` or `Accept: application/cwt`). Capability advertisement (`/.well-known/aifp` returning `["jwt","cwt"]`) MUST NOT be sufficient by itself — the merchant MUST reject a receipt whose encoding was not explicitly requested by the agent in the original request. **Codec-confsion attacks** (sending a different encoding than the one the agent claimed to send) MUST be mitigated by strict per-request encoding matching. The merchant MUST NOT auto-detect encoding from the receipt alone.
+> **Codec negotiation (Future Extension, normative when implemented).** When the CWT/COSE variant becomes normative, it MUST be negotiated per-request via explicit `Accept` request headers (e.g., `Accept: application/jwt` or `Accept: application/cwt`). Capability advertisement (`/.well-known/aifp` returning `["jwt","cwt"]`) MUST NOT be sufficient by itself — the merchant MUST reject a receipt whose encoding was not explicitly requested by the agent in the original request. **Codec-confusion attacks** (sending a different encoding than the one the agent claimed to send) MUST be mitigated by strict per-request encoding matching. The merchant MUST NOT auto-detect encoding from the receipt alone.
 
 ---
 

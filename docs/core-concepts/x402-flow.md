@@ -49,3 +49,5 @@ For the full developer path, use [Quick Start](../quickstart/index.md).
 - [Pricing](../economics.md)
 - [Security Model](../security-model.md)
 - [Error Codes](../reference/error-codes.md)
+- [Agent Communication Protocol](../aifp/16-Agent-Communication-Protocol-Specification.md)
+- [Cross-Agent Payments](../aifp/01-AIFP-1-RFC-Payment-Protocol-Specification.md#20-cross-agent-payments-via-acp)

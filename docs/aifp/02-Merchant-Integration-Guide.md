@@ -182,14 +182,13 @@ export type VerifyResult =
 
 export async function verifyReceipt(opts: {
   token: string; merchantId: string; resource: string; requiredAmount: string;
-  nonceSeen: (n: string) => Promise<boolean>;       // returns true if replay
-  markNonce: (n: string, ttl: number) => Promise<void>;
+  consumeNonce: (n: string, ttl: number) => Promise<boolean>; // atomic SET NX EX; false = replay
 }): Promise<VerifyResult> {
   let payload: any;
   try {
     ({ payload } = await jwtVerify(opts.token, JWKS, {
       issuer: ISSUER, audience: opts.merchantId, algorithms: ["EdDSA"],
-      clockTolerance: 30, // seconds
+      clockTolerance: 5, // seconds
     }));
   } catch { return { ok: false, status: 422, reason: "signature/exp/aud invalid" }; }
 
@@ -198,14 +197,14 @@ export async function verifyReceipt(opts: {
   if (!amountGte(payload.amount, opts.requiredAmount))
     return { ok: false, status: 422, reason: "amount below price" };
 
-  if (await opts.nonceSeen(payload.nonce))
-    return { ok: false, status: 409, reason: "receipt replay" };
-
   const ttl = Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
-  await opts.markNonce(payload.nonce, ttl);
+  if (!(await opts.consumeNonce(payload.nonce, ttl)))
+    return { ok: false, status: 409, reason: "receipt replay" };
   return { ok: true, receiptId: payload.receipt_id, nonce: payload.nonce, exp: payload.exp };
 }
 ```
+
+`consumeNonce` MUST be a single atomic, linearizable operation. With Redis, use `SET n:<nonce> 1 EX <ttl> NX` and treat a null response as replay; in replicated deployments, pair it with the consistency mechanism required by the Security Specification §9.
 
 > **Why local?** Ed25519 verifies at ~50k ops/s/core. Verifying on your side means AiFinPay availability never gates your traffic, and you add only microseconds per request. This is non-negotiable for scale (AIFP-1 §4.2).
 
@@ -268,8 +267,7 @@ export async function aifp(req, res, next) {
 
   const r = await verifyReceipt({
     token, merchantId: MERCHANT_ID, resource, requiredAmount: priceFor(resource),
-    nonceSeen: n => redis.exists(`n:${n}`).then(Boolean),
-    markNonce: (n, ttl) => redis.set(`n:${n}`, "1", "EX", ttl).then(() => {}),
+    consumeNonce: (n, ttl) => redis.set(`n:${n}`, "1", "EX", ttl, "NX").then(v => v === "OK"),
   });
   if (!r.ok) {
     if (r.status === 402) return challenge(res, resource);
@@ -324,8 +322,7 @@ app.addHook("onRequest", async (req, reply) => {
 
   const r = await verifyReceipt({
     token, merchantId: MERCHANT_ID, resource, requiredAmount: priceFor(resource),
-    nonceSeen: n => redis.exists(`n:${n}`).then(Boolean),
-    markNonce: (n, ttl) => redis.set(`n:${n}`, "1", "EX", ttl).then(() => {}),
+    consumeNonce: (n, ttl) => redis.set(`n:${n}`, "1", "EX", ttl, "NX").then(v => v === "OK"),
   });
   if (!r.ok) return r.status === 402 ? send402()
     : reply.code(r.status).send({ error: { code: `AIFP-${r.status}`, message: r.reason } });
@@ -379,8 +376,7 @@ export class AifpGuard implements CanActivate {
 
     const r = await verifyReceipt({
       token, merchantId: this.MERCHANT_ID, resource, requiredAmount: priceFor(resource),
-      nonceSeen: n => this.redis.exists(`n:${n}`).then(Boolean),
-      markNonce: (n, ttl) => this.redis.set(`n:${n}`, "1", "EX", ttl).then(() => {}),
+      consumeNonce: (n, ttl) => this.redis.set(`n:${n}`, "1", "EX", ttl, "NX").then(v => v === "OK"),
     });
     if (r.ok) return true;
     if (r.status === 402) return challenge();
@@ -421,7 +417,7 @@ export async function middleware(req: NextRequest) {
   if (!token) return challenge();
   try {
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: "https://api.aifinpay.io", audience: MERCHANT_ID, algorithms: ["EdDSA"], clockTolerance: 30,
+      issuer: "https://api.aifinpay.io", audience: MERCHANT_ID, algorithms: ["EdDSA"], clockTolerance: 5,
     });
     const toUnits = (s: string) => { const [i, f = ""] = s.split("."); return BigInt(i) * 10n ** 8n + BigInt(f.padEnd(8, "0").slice(0, 8)); };
     if (payload.resource !== resource || toUnits(payload.amount) < toUnits(PRICE.standard))
@@ -660,9 +656,9 @@ public class AifpFilter extends OncePerRequestFilter {
         { res.setStatus(422); return; }
       if (new java.math.BigDecimal(c.getStringClaim("amount")).compareTo(new java.math.BigDecimal("0.00001")) < 0) { res.setStatus(422); return; }
       String nonce = c.getStringClaim("nonce");
-      if (Boolean.TRUE.equals(redis.hasKey("n:" + nonce))) { res.setStatus(409); return; }
       long ttl = Math.max(1, c.getExpirationTime().getTime()/1000 - System.currentTimeMillis()/1000);
-      redis.opsForValue().set("n:" + nonce, "1", Duration.ofSeconds(ttl));
+      Boolean consumed = redis.opsForValue().setIfAbsent("n:" + nonce, "1", Duration.ofSeconds(ttl));
+      if (!Boolean.TRUE.equals(consumed)) { res.setStatus(409); return; }
       chain.doFilter(req, res);
     } catch (Exception e) { challenge(res, resource); }
   }
@@ -711,12 +707,12 @@ public class AifpMiddleware {
             var handler = new JwtSecurityTokenHandler();
             var principal = handler.ValidateToken(token, new TokenValidationParameters {
                 ValidIssuer = Issuer, ValidAudience = Merchant, IssuerSigningKeys = keys,
-                ClockSkew = TimeSpan.FromSeconds(30)
+                ClockSkew = TimeSpan.FromSeconds(5)
             }, out _);
             var claims = principal.Claims.ToDictionary(c => c.Type, c => c.Value);
             if (claims["resource"] != resource || decimal.Parse(claims["amount"]) < 0.00001m) { ctx.Response.StatusCode = 422; return; }
-            if (await _redis.KeyExistsAsync($"n:{claims["nonce"]}")) { ctx.Response.StatusCode = 409; return; }
-            await _redis.StringSetAsync($"n:{claims["nonce"]}", "1", TimeSpan.FromSeconds(600));
+            var consumed = await _redis.StringSetAsync($"n:{claims["nonce"]}", "1", TimeSpan.FromSeconds(600), When.NotExists);
+            if (!consumed) { ctx.Response.StatusCode = 409; return; }
             await _next(ctx);
         } catch { await Challenge(ctx, resource); }
     }
@@ -737,16 +733,17 @@ public class AifpMiddleware {
 ## 6.10. Go (net/http + chi)
 
 ```bash
-go get github.com/go-chi/chi/v5 github.com/golang-jwt/jwt/v5 github.com/redis/go-redis/v9
+go get github.com/go-chi/chi/v5 github.com/golang-jwt/jwt/v5 github.com/redis/go-redis/v9 github.com/shopspring/decimal
 ```
 
 ```go
 package aifp
 
 import (
-	"encoding/json"; "net/http"; "strconv"; "time"
+	"encoding/json"; "net/http"; "time"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -773,11 +770,12 @@ func Middleware(rdb *redis.Client, keyfunc jwt.Keyfunc) func(http.Handler) http.
 			if err != nil || !tok.Valid { challenge(w, resource); return }
 			c := tok.Claims.(jwt.MapClaims)
 			if c["resource"] != resource { w.WriteHeader(422); return }
-			amt, _ := strconv.ParseFloat(c["amount"].(string), 64) // use shopspring/decimal for exact micropayment math
-			if amt < 0.00001 { w.WriteHeader(422); return }
+			amt, _ := decimal.NewFromString(c["amount"].(string))
+			required := decimal.RequireFromString("0.00001")
+			if amt.LessThan(required) { w.WriteHeader(422); return }
 			nonce := c["nonce"].(string)
-			if n, _ := rdb.Exists(ctx, "n:"+nonce).Result(); n == 1 { w.WriteHeader(409); return }
-			rdb.Set(ctx, "n:"+nonce, "1", 600*time.Second)
+			ok, _ := rdb.SetNX(ctx, "n:"+nonce, "1", 600*time.Second).Result()
+			if !ok { w.WriteHeader(409); return }
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -878,10 +876,10 @@ export default {
     if (!token) return challenge();
     try {
       const { payload } = await jwtVerify(token, JWKS, {
-        issuer: "https://api.aifinpay.io", audience: MERCHANT, algorithms: ["EdDSA"], clockTolerance: 30 });
+        issuer: "https://api.aifinpay.io", audience: MERCHANT, algorithms: ["EdDSA"], clockTolerance: 5 });
       if (payload.resource !== url.pathname) return new Response(null, { status: 422 });
-      if (await env.NONCE.get(`n:${payload.nonce}`)) return new Response(null, { status: 409 });
-      await env.NONCE.put(`n:${payload.nonce}`, "1", { expirationTtl: 600 });
+      // Use a strongly consistent KV/DO primitive here; non-atomic get-then-put is non-conformant.
+      if (!(await env.NONCE.consume(`n:${payload.nonce}`, { expirationTtl: 600 }))) return new Response(null, { status: 409 });
       return fetch(req);
     } catch { return challenge(); }
   },
@@ -1054,7 +1052,7 @@ Always include a structured body: `{ "error": { "type", "code", "message", "requ
 - **Degraded mode:** if AiFinPay is unreachable, keep honoring valid unexpired receipts. Verification is local — it does not need AiFinPay to be up.
 - **Atomic quota:** use Redis `INCR` with a TTL window, never read-modify-write.
 - **Nonce store sizing:** TTL = receipt TTL (~600s). At any instant you only store nonces seen in the last ~10 min, so the set stays tiny even at billions/day.
-- **Clock skew:** allow ≤30s tolerance on `exp`.
+- **Clock skew:** allow ≤5s tolerance on `exp`.
 - **Idempotent challenges:** issuing a `402` must never consume quota or mutate state.
 - **Observability:** emit `aifp_402_total`, `aifp_verify_fail_total{reason}`, `aifp_receipt_redeemed_total`, p99 verify latency.
 - **Webhooks:** verify `AIFP-Signature` (HMAC-SHA256) + 5-min timestamp window before trusting any webhook. **And track webhook event `id` for replay rejection (TTL ≥ 24 h, AIFP-1 §9.4).**
@@ -1066,7 +1064,7 @@ Always include a structured body: `{ "error": { "type", "code", "message", "requ
 - **TLS 1.3 only.** All traffic, including receipt retries.
 - **Verify everything by signature.** Never trust a receipt you did not cryptographically verify against the current JWKS.
 - **Bind tightly.** Always check `aud == your merchant_id` and `resource == requested path`. A receipt for resource A MUST NOT unlock resource B.
-- **Replay-proof.** A nonce store is mandatory; without it, a captured receipt could be reused until expiry.
+- **Replay-proof.** A nonce store is mandatory and must consume each nonce atomically (`SET NX EX` or equivalent); without it, a captured receipt could be reused until expiry.
 - **Secrets hygiene.** Keep `sk_live_*` server-side only; rotate on exposure. Use `pk_live_*` for any client-exposed config.
 - **Rate limit** the challenge path to blunt nonce-harvesting and DoS.
 - Full guidance: [Security & Cryptography Specification](./04-Security-and-Cryptography-Specification.md).
@@ -1079,10 +1077,10 @@ Always include a structured body: `{ "error": { "type", "code", "message", "requ
 |---|---|
 | Verification throughput | Local Ed25519 (~50k/s/core); scale horizontally, no backend dependency |
 | Quota counters | Redis cluster / Workers KV; shard by agent id |
-| Nonce store | Short-TTL Redis; memory bounded by TTL window |
+| Nonce store | Short-TTL Redis with atomic `SET NX EX` plus linearizable consistency; memory bounded by TTL window |
 | Edge | Verify at CDN edge (Cloudflare/Next middleware) for single-digit-ms overhead |
 | Hot keys | Consistent hashing; local LRU for JWKS |
-| Multi-region | JWKS is global & cacheable; nonce store can be regional with sticky agent routing |
+| Multi-region | JWKS is global & cacheable; nonce store must be strongly consistent, synchronously replicated, or routed by consistent shard/sticky agent routing |
 
 ---
 
@@ -1103,7 +1101,7 @@ The dominant cost is your own business logic, not AIFP. The protocol adds sub-mi
 
 # 12. Glossary
 
-See AIFP-1 [Appendix A](./01-AIFP-1-RFC-Payment-Protocol-Specification.md#appendix-a-glossary) for the canonical glossary. Key merchant terms: **Payment Challenge**, **Receipt Token**, **Stateless Verification**, **Free Quota**, **Pricing Tier Tier**, **Nonce Store**, **JWKS**, **kid**, **Degraded Mode**.
+See AIFP-1 [Appendix A](./01-AIFP-1-RFC-Payment-Protocol-Specification.md#appendix-a-glossary) for the canonical glossary. Key merchant terms: **Payment Challenge**, **Receipt Token**, **Stateless Verification**, **Free Quota**, **Pricing Tier**, **Nonce Store**, **JWKS**, **kid**, **Degraded Mode**.
 
 ---
 

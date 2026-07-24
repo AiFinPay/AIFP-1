@@ -21,6 +21,7 @@ The official documentation ecosystem for the **AiFinPay Paywall Protocol (AIFP)*
 | 13 | [Branding Guidelines](./13-Branding-Guidelines.md) | Everyone | Naming, color, typography, code and doc style |
 | 14 | [Ecosystem & Governance](./14-Ecosystem-and-Governance.md) | Partners, foundations | Open-standard strategy, governance, certification |
 | 15 | [Repository Architecture](./15-Repository-Architecture.md) | Maintainers | GitHub org layout, CI/CD, templates, contribution flow |
+| 16 | [Agent Communication Protocol](./16-Agent-Communication-Protocol-Specification.md) | Agent developers | Agent-to-agent messaging, discovery, cross-agent payments |
 
 ## Pricing Summary
 

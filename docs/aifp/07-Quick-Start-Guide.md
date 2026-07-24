@@ -158,7 +158,19 @@ Full method reference: **Doc 11 — SDK Reference**.
 
 ---
 
-## 5. Running Your First Demo
+## 5. Real-World Interaction Patterns
+
+| Scenario | Merchant behavior | Agent behavior | Operational notes |
+|---|---|---|---|
+| Paid data API | Price `/api/company/:id` as `standard`; return `402` after free quota; verify `Payment-Receipt` locally on retry | Detect `402`, request quote, pay from budgeted wallet, retry original GET | Cache JWKS, consume receipt nonce atomically, log `receipt_id` for audit |
+| RAG retrieval pipeline | Price search as `complex`; include resource path and query class in the challenge | Batch retrieval calls but pay per protected result page within daily cap | Bind receipt `resource` to the canonical route, not raw unnormalized query text |
+| Premium inference endpoint | Price GPU or model calls as `premium`; use `425` for high-value async settlement if configured | Honor `Retry-After`, poll or wait for webhook, then replay with the same receipt | Use strict amount comparison and do not serve until settlement policy is satisfied |
+| Licensed crawler access | Serve public quota first, then challenge crawler traffic instead of blocking | Present Passport for reputation and negotiated quota; pay automatically when quota is exhausted | Do not treat `AIFP-Agent-ID` alone as identity; require Passport for durable crawler reputation |
+| Merchant back-office reconciliation | Consume `settlement.completed`, `payout.completed`, and `dispute.opened` webhooks | No direct agent action after receipt redemption | Verify HMAC, reject duplicate webhook `id`, and reconcile `tx_ref` against internal ledger |
+
+---
+
+## 6. Running Your First Demo
 
 ```bash
 # Clone the official examples
@@ -175,7 +187,7 @@ AIFP_KEY=sk_test_... node agent.js
 
 ---
 
-## 6. Testing
+## 7. Testing
 
 ```bash
 # Dry-run the full loop without spending (sandbox)
@@ -190,7 +202,7 @@ quote → pay → receipt and auto-generates the `Idempotency-Key`.
 
 ---
 
-## 7. Sandbox vs Production
+## 8. Sandbox vs Production
 
 | | Sandbox | Production |
 |---|---|---|
@@ -204,7 +216,7 @@ re-run the demo. No code changes.
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|

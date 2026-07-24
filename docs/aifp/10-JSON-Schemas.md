@@ -398,5 +398,5 @@ For tooling that prefers a single file, publish `schemas/aifp.bundle.json` with 
 
 ```bash
 # Validate an example receipt envelope against the schema
-npx ajv-cli validate -s receipt.json -d examples/receipt.settled.json --spec=draft2020
+npx ajv-cli validate -s webhook.json -d examples/settlement.completed.json --spec=draft2020
 ```
