@@ -467,7 +467,12 @@ components:
       in: header
       required: true
       schema: { type: string, format: uuid }
-      description: Client-generated UUID. Dedupe window 24h.
+      description: |
+        Client-generated UUID. MUST be drawn from a CSPRNG with ≥ 122 bits
+        of entropy (e.g., `crypto.randomUUID()`, `secrets.token_hex(16)`,
+        `os.urandom(16)`). DO NOT use `Math.random()` or time-based seeds —
+        weak RNG enables forced-collision denial (AIFP-1 §8.5 / Security Spec §10).
+        Dedupe window 24h.
     MerchantId:
       name: merchant_id
       in: path

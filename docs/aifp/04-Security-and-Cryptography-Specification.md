@@ -179,7 +179,15 @@ Every leaf terminates in a mitigation. There is no path to the goal without comp
 
 ## 5.2. Agent Passport authentication
 
-Where used, an agent proves identity by signing a challenge with its Passport Ed25519 key (`pp_*`). Delegated sub-agents present a delegation chain signed by the owner. Verification checks signature, scope, and expiry. Passport is optional (AIFP-1 §10.2).
+Where used, an agent proves identity by signing a challenge with its Passport Ed25519 key (`pp_*`). Delegated sub-agents present a delegation chain signed by the owner. Verification MUST check signature, scope, expiry, **delegation depth (≤ 5 levels, see §13)**, and cycle detection over visited `pp_*` IDs.
+
+**Passport is REQUIRED for identity-bound features.** Anonymous payment (funded wallet, no Passport) is permitted, but the following MUST require a Passport:
+
+- **Budget policy attribution** — `per_window`, `per_merchant`, daily/monthly caps are bound to a Passport's `passport_id`. `AIFP-Agent-ID` header alone is NOT a sufficient identity for budget spend.
+- **Reputation / trust-level** — `reputation`, `risk`, `trust_level` claims only apply when a valid Passport is presented.
+- **Free-quota attribution** — quota SHOULD be keyed by Passport `passport_id` or the Ed25519 public key hash, not by an unauthenticated header.
+
+Without a Passport, requests are anonymous and MAY still receive free quota (per-IP rate-limited), but MUST NOT be attributed to a persistent identity, budget, or reputation that another actor could spoof.
 
 ---
 
@@ -252,6 +260,8 @@ The verification is **pure** except for the nonce store touch. It MUST NOT conta
 
 For constrained agents, the same claim set is encoded as a CBOR Web Token signed with COSE/EdDSA. Verification is identical in logic; the merchant selects the codec by `cty`/capability negotiation.
 
+> **Codec negotiation (Future Extension, normative when implemented).** When the CWT/COSE variant becomes normative, it MUST be negotiated per-request via explicit `Accept` request headers (e.g., `Accept: application/jwt` or `Accept: application/cwt`). Capability advertisement (`/.well-known/aifp` returning `["jwt","cwt"]`) MUST NOT be sufficient by itself — the merchant MUST reject a receipt whose encoding was not explicitly requested by the agent in the original request. **Codec-confsion attacks** (sending a different encoding than the one the agent claimed to send) MUST be mitigated by strict per-request encoding matching. The merchant MUST NOT auto-detect encoding from the receipt alone.
+
 ---
 
 # 9. Replay Protection & Nonce Management
@@ -259,8 +269,37 @@ For constrained agents, the same claim set is encoded as a CBOR Web Token signed
 - Every challenge and receipt carries a **single-use nonce**, ≥128 bits from a CSPRNG.
 - The merchant maintains a **nonce store** (Redis or sharded in-memory) keyed by nonce with **TTL = receipt TTL** (~600 s). On redemption the nonce is written; a re-presented nonce → `409`.
 - Because TTL is short, the store only ever holds nonces from the last few minutes — bounded memory even at billions of receipts/day.
-- **Clock skew:** allow ≤30 s tolerance on `exp` to avoid false expiries across hosts; never more.
-- **Distributed correctness:** route an agent's receipts to a consistent shard (or use a strongly consistent store) so two concurrent presentations of the same nonce cannot both win. A `SET nonce NX EX ttl` (set-if-absent) is the canonical atomic primitive.
+- **Clock skew:** allow ≤5 s tolerance on `exp` to avoid false expiries across hosts; never more.
+- **Distributed correctness (linearizability required).** The nonce store MUST provide **linearizable** semantics for `SET NX EX ttl`. Asynchronous replication (default in many Redis Sentinel/Cluster deployments) is **insufficient**: two concurrent presentations of the same nonce from different merchant instances can both observe `nil` if the `SET NX` has not yet replicated, allowing double-redemption.
+  - Conforming implementations MUST use one of:
+    1. **Strongly consistent store** (etcd, Consul, ZooKeeper) for the nonce store.
+    2. **Redis with synchronous replication** (WAIT ≥ 1 replica acknowledged after each `SET NX`), e.g., `SET ... NX EX ttl` immediately followed by `WAIT 1 1000`.
+    3. **Consistent-shard routing** — route an agent's receipts to a single shard via consistent hashing so concurrent presentments of the same nonce are serialized on that shard.
+    4. **Local in-process nonce store** for single-instance deployments (process-locked, no replication).
+  - The canonical primitive is `SET nonce value NX EX ttl` (set-if-absent with expiry), but it MUST be coupled with one of the consistency mechanisms above.
+  - **Multi-use receipts (`quota` claim):** when a receipt carries a `quota` claim (Section 7.5), the store MUST track `(nonce, use_count)` atomically (e.g., Lua script `INCR` with cap check, or equivalent). The nonce is consumed only when `use_count` reaches `quota`. Single-use receipts (`quota` absent) track presence only.
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant M as Merchant
+    participant N as Nonce store (linearizable)
+    A->>M: retry + receipt(nonce=X, quota=5)
+    alt First use
+        M->>N: SET n:X 1 NX EX ttl
+        N-->>M: OK
+        M->>N: INCR n:X (remaining=4)
+        M-->>A: 200
+    else Use N of N
+        M->>N: INCR n:X (remaining=N)
+        Note over N: quota reached → mark consumed
+        M-->>A: 200
+    else Replay
+        M->>N: INCR n:X (returns > quota)
+        N-->>M: reject
+        M-->>A: 409
+    end
+```
 
 ```mermaid
 sequenceDiagram
@@ -303,8 +342,10 @@ Together these provide an end-to-end **exactly-once value transfer with at-most-
 sequenceDiagram
     participant KMS
     participant JWKS
+    participant CDN
     participant Merchant
     KMS->>JWKS: publish new key (kid=N+1) alongside kid=N
+    Note over CDN: long-TTL cache (e.g., 1h)
     Note over Merchant: caches both keys
     KMS->>KMS: start signing with kid=N+1
     Note over JWKS: kid=N kept until all kid=N receipts expire (>=600s)
@@ -312,12 +353,19 @@ sequenceDiagram
 ```
 
 - New receipts sign with the new `kid`; old `kid` stays in JWKS until every receipt it signed has expired (≥ receipt TTL).
-- Merchants **MUST** refresh JWKS on encountering an unknown `kid` (with rate-limited backoff to avoid thundering herd).
-- **Compromise response:** immediately retire the affected `kid`, publish a revocation, force re-sign, and rotate. Already-expired short-TTL receipts limit blast radius to minutes.
+- Merchants **MUST** refresh JWKS on encountering an unknown `kid`. To prevent thundering-herd DoS at rotation time, the following are **normative**:
+  1. **Rate-limited exponential backoff with full jitter.** A conforming client MUST cap refresh attempts (e.g., ≤ 1 refresh per IP/Merchant-ID per ≤ 60 s) and MUST apply exponential backoff with full jitter on 429 or 5xx responses (RFC 9110 §10.2 `Retry-After` if present).
+  2. **JWKS MUST be CDN-cacheable** with a long `Cache-Control` `max-age` (e.g., 3600 s). The `/.well-known/jwks.json` endpoint MUST return `Cache-Control` and `ETag` headers so origin load is bounded.
+  3. **`kid` format validation.** An implementation MUST validate `kid` against a known pattern (e.g., `^aifp-[0-9]{4}-[0-9]{2}$`) before triggering a JWKS refresh. Unknown-format `kid` values MUST be rejected (422) without a refresh.
+  4. **Refresh-budget cap.** A conforming implementation MUST bound consecutive failed refreshes for the same merchant (e.g., max 5) before failing closed (reject all receipts with that merchant's `aud`) and alarming.
+- **Compromise response:** immediately retire the affected `kid`, publish a revocation, force re-sign, and rotate. Already-expired short-TTL receipts limit blast radius to minutes. The compromise-response document MUST include a `kid` revocation list reachable at the same JWKS URL, and merchants MUST check it on every refresh.
+- **Staggered rotation (operational guidance, server-side).** When rotating an issuer key, the control plane SHOULD introduce the new `kid` gradually (e.g., dual-sign for a transitional window) and SHOULD deliver the new JWKS to CDN before signing with the new key, so that the first batch of new `kid` receipts can already be verified.
 
 ## 11.3. Webhook & API key rotation
 
 Webhook HMAC secrets and API keys support dual-secret rotation (accept old+new during overlap). Keys are revocable instantly from the dashboard.
+
+- Webhook HMAC secrets SHOULD rotate automatically every **≤ 90 days**; merchants SHOULD support dual-secret overlap. Implementations MAY derive per-webhook-endpoint keys from a master secret via HKDF (RFC 5869) to limit blast radius if a derived key leaks.
 
 ---
 
@@ -370,6 +418,7 @@ Webhook HMAC secrets and API keys support dual-secret rotation (accept old+new d
 | Verify path | Local & cheap by design; not a DoS amplifier (no backend call) |
 | Assisted `/v1/verify` | OPTIONAL fallback only (constrained proxies); aggressive per-key rate limit + `429`; MUST NOT carry routine verification traffic — routing routine verify load to the control plane reintroduces a backend dependency and a DoS amplifier the stateless design exists to eliminate |
 | Pay path | Idempotency + budget caps bound spend even under abuse |
+| JWKS path | CDN-cached with long `Cache-Control` + `ETag`; client-side exponential backoff with full jitter on 429/5xx; per-merchant refresh cap (≤ 1/min) and total-failure budget; `kid` regex pre-validation before refresh (§11.2) — prevents thundering-herd DoS at issuer key rotation |
 
 Because verification is local and stateless, a DDoS against merchants cannot be amplified through AiFinPay, and an AiFinPay outage cannot take down merchant verification.
 
@@ -401,12 +450,12 @@ Because verification is local and stateless, a DDoS against merchants cannot be 
 [ ] TLS 1.3 enforced everywhere
 [ ] Receipts verified locally vs current JWKS (EdDSA), aud+resource+amount+exp+nonce checked
 [ ] alg pinned to EdDSA; alg:none and HS* rejected for receipts
-[ ] Nonce store present, atomic SET NX EX, TTL = receipt TTL
+[ ] Nonce store present, atomic SET NX EX, TTL = receipt TTL, **linearizable consistency** (§9)
 [ ] Idempotency-Key honored on /pay for 24h
-[ ] JWKS cached + refreshed on unknown kid (rate-limited)
+[ ] JWKS cached + refreshed on unknown kid (rate-limited, exponential backoff with full jitter, CDN-cached, kid regex pre-validation — §11.2)
 [ ] Issuer keys in HSM/KMS; rotation with overlap; compromise runbook ready
 [ ] sk_* server-only, hashed at rest, scoped, rotatable; secret scanning on
-[ ] Webhooks: verify HMAC + 5-min timestamp window
+[ ] Webhooks: verify HMAC + 5-min timestamp window **and** track webhook event `id` for replay rejection (TTL ≥ 24 h)
 [ ] Rate limits + WAF on challenge/pay paths
 [ ] Budgets enforced pre-sign; AIFP-403-BUDGET-EXCEEDED on breach
 [ ] Append-only audit log + metrics + alerting wired

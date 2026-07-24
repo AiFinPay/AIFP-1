@@ -351,20 +351,23 @@ A merchant MUST verify a receipt locally, with no network call, as follows:
 
 ```
 1. Parse the JWT and read `kid`.
-2. Resolve the issuer public key for `kid` (from a cached JWKS).
+2. Resolve the issuer public key for `kid` (from a cached JWKS, rate-limited refresh per Section 18.5 / Security Spec §11).
 3. Verify the EdDSA signature. On failure → 422.
 4. Check `iss` is the trusted AiFinPay issuer. On failure → 422.
 5. Check `aud == this merchant_id`. On failure → 403.
 6. Check `resource == requested resource`. On failure → 422.
-7. Check `now < exp` (with ≤30s clock skew). On failure → 402 (expired).
-8. Check `amount >= required price` for the resource/pricing_tier. On failure → 422.
-9. Check `nonce` has NOT been seen before (local nonce store). On replay → 409.
-10. Mark `nonce` used (TTL = exp). Serve 200. Done.
+7. Check `now < exp` (with ≤5s clock skew). On failure → 402 (expired).
+8. Check `amount >= required price` for the resource/pricing_tier using decimal-string or integer-minor-unit comparison (MUST NOT use `float`/`double`; see Security Spec §8.2). On failure → 422.
+9. Check `nonce` has NOT been seen before in a linearizable nonce store (see Security Spec §9 — asynchronous replication is insufficient). On replay → 409.
+9.5. When the merchant maintains a session-bound challenge→quote→receipt chain (Section 9.2), additional SHOULD verify that the receipt `nonce` equals the `nonce` issued in the most recent challenge the merchant sent to this agent for this resource. Mismatch → 422.
+10. Mark `nonce` used (TTL = exp) atomically; for `quota`-bearing receipts, atomically increment a per-nonce use counter and reject when the counter exceeds `quota`. Serve 200 only when the count is within the cap. Done.
 ```
 
-Steps 1–8 are pure and stateless. Step 9 requires a small, fast **nonce store** (Redis or in-memory with TTL) sized to the receipt TTL window — typically minutes, not forever. See Section 18.5.
+Steps 1–8 are pure and stateless. Step 9 requires a small, fast **nonce store** (Redis or in-memory with TTL) sized to the receipt TTL window — typically minutes, not forever — and **MUST** provide linearizable semantics for `SET NX` so that two concurrent presentments of the same nonce cannot both succeed (see Security Spec §9 for the allowed consistency mechanisms). See Section 18.5.
 
 > **Normative note on assisted verification.** An OPTIONAL `POST /v1/verify` endpoint exists for constrained edge proxies that cannot perform EdDSA verification locally. Conformant merchants MUST verify receipts locally (this algorithm) and MUST NOT route routine verification traffic through the assisted endpoint, which would reintroduce a backend dependency and a DoS amplifier. The assisted endpoint is rate-limited and intended only as a fallback; see the Security Specification §16.
+
+> **Multi-use receipts (`quota` claim, Section 7.5).** When the receipt carries a `quota` claim, the merchant MUST track and bound `use_count` per nonce atomically. Absent a `quota` claim, the receipt is single-use (one redemption per nonce).
 
 ## 7.5. Receipt lifecycle
 
@@ -420,6 +423,8 @@ Versioning is by path prefix (`/v1`). Backward-compatible additions do not chang
 ## 8.5. Idempotency
 
 Every state-changing POST (notably `/pay`) MUST accept an `Idempotency-Key`. The server MUST store the first response keyed by `(api_key, Idempotency-Key)` for **24 hours** and return the **identical** response for any repeat with the same key and body. A repeat with the same key but a **different body** MUST return `409 Conflict`. This makes payment retries safe: a client that times out can safely re-`POST /pay` and will never double-charge.
+
+> **Idempotency-Key generation.** Conforming clients MUST generate `Idempotency-Key` values from a **cryptographically secure random source (CSPRNG)** with ≥ 122 bits of entropy (e.g., RFC 4122 UUIDv4 from `crypto.randomUUID()` / `secrets.token_hex(16)` / `os.urandom(16)`, NOT `Math.random()` or `time`-based seeds). The server SHOULD validate the key shape (UUID format) but MUST NOT trust the key for security beyond its entropy — collision resistance is the goal.
 
 ---
 
@@ -494,6 +499,8 @@ sequenceDiagram
 
 AiFinPay emits signed webhooks on payment lifecycle events: `payment.succeeded`, `payment.pending`, `payment.failed`, `receipt.issued`, `receipt.redeemed`, `settlement.completed`, `payout.completed`, `dispute.opened`. Each is signed `AIFP-Signature: t=<ts>,v1=<hmac>` (HMAC-SHA256). The merchant MUST verify signature and timestamp (5-minute replay window). Delivery is at-least-once with exponential retry up to 72 hours, then dead-letter.
 
+> **Replay protection.** The HMAC timestamp window alone does not prevent replay of captured webhooks within 5 min. Merchants MUST additionally track the webhook event `id` (e.g., `evt_2a9f`; see Doc 10 `webhook.json`) in a short-TTL set (TTL ≥ the replay window, recommended ≥ 24 h to span retries) and MUST reject any event whose `id` has already been processed, returning `200` with the response as `idempotent` (the server has no state to mutate on a replay and the operation is already complete). Webhook event `id` values are globally unique; conformance IDs SHOULD be ULIDs or UUIDv7 to enable indexable, sort-keyed storage.
+
 ---
 
 # 10. Authentication & Authorization
@@ -507,7 +514,15 @@ AIFP distinguishes **identity** (who you are) from **payment** (proof you paid):
 
 ## 10.2. Agent identity
 
-An agent is identified by `AIFP-Agent-ID` and, optionally, an **Agent Passport** (a signed identity credential, `agt_*` / `pp_*`, Ed25519). The Passport binds an agent to its wallets, budget policies, and reputation. Full Passport semantics are defined in the [AI Agent SDK Specification](./03-AI-Agent-SDK-Specification.md#agent-passport) and the [Security Specification](./04-Security-and-Cryptography-Specification.md). For AIFP-1, a Passport is OPTIONAL: an agent MAY pay anonymously with only a funded wallet.
+An agent is identified by `AIFP-Agent-ID` and, optionally, an **Agent Passport** (a signed identity credential, `agt_*` / `pp_*`, Ed25519). The Passport binds an agent to its wallets, budget policies, and reputation. Full Passport semantics are defined in the [AI Agent SDK Specification](./03-AI-Agent-SDK-Specification.md#agent-passport) and the [Security Specification](./04-Security-and-Cryptography-Specification.md).
+
+> **Passport is OPTIONAL for anonymous payment, but REQUIRED for identity-bound features.** An agent MAY pay anonymously with only a funded wallet. However, the following features **MUST** require a valid Agent Passport issued for the paying `agt_*`:
+>
+> 1. **Budget policy enforcement** — server-side `per_window`, `per_merchant`, and `daily/monthly` caps MUST be tied to a Passport-bound `agt_*`. An unauthenticated `AIFP-Agent-ID` header alone MUST NOT be sufficient to attribute spend to a budget.
+> 2. **Reputation / trust level** — `reputation`, `risk`, and `trust_level` claims (Security Spec §17) MUST be evaluated against a Passport.
+> 3. **Free-quota attribution** — per-agent free quota MUST be key-bound, not header-bound. Merchants that serve free quota SHOULD use the Passport's `passport_id` (or the Ed25519 public key hash) as the quota key.
+>
+> Without a Passport, merchants MUST treat requests as originating from an unkeyed, anonymous bucket — they MAY still serve free quota (e.g., per-IP), but MUST NOT bind it to a budget, reputation, or persistent agent identity that other actors could spoof. See Security Spec §5.2.
 
 ## 10.3. Authorization rules
 
@@ -575,6 +590,15 @@ An AIFP agent: sends a request; on `402`, parses the challenge, gets a quote, pa
 
 A wallet is funded on-chain (stablecoin deposit) or via fiat top-up. Each wallet carries a **budget policy**: per-request cap, daily/monthly caps, per-merchant allowances, and an optional auto-refill. The protocol error `AIFP-403-BUDGET-EXCEEDED` is returned when a payment would breach a budget policy. Wallet binding to an Agent Passport, multi-wallet routing, and MPC operation are specified in Documents 3 and 4.
 
+> **Atomic budget enforcement (mandatory).** Budget check and deduct MUST be a single atomic operation. Naïve `read → compare → set` sequences are race-prone: N concurrent `/pay` requests can each pass the `daily-cap < X` check before any deducts, allowing spend above the cap.
+>
+> Conforming implementations MUST use one of:
+> 1. **Atomic store increment with cap** — e.g., Redis `INCRBY` against a per-window counter followed by an `EXPIRE`, wrapped in a Lua script that rejects when the new value exceeds the cap (server returns `AIFP-403-BUDGET-EXCEEDED`).
+> 2. **Optimistic transaction with conditional write** (e.g., etcd txn, Postgres `UPDATE ... WHERE spend+amount <= cap`).
+> 3. **Per-wallet serialization** via a single-writer mutex (limits throughput but guarantees correctness).
+>
+> Budget keys SHOULD be `(wallet_id, window, scope)` where `scope ∈ {merchant, global}`. The client SDK MAY also enforce budgets pre-sign (defense-in-depth), but server-side atomic enforcement is the authoritative gate.
+
 ---
 
 # 14. x402 Compatibility & Migration
@@ -592,12 +616,20 @@ POST /v1/migrate/x402
 Authorization: Bearer <agent_api_key>
 Content-Type: application/json
 
-{ "x402_identity": "...", "preferred_chain": "polygon", "preferred_asset": "USDC" }
+{
+  "x402_identity": "...",
+  "x402_challenge": "0xdeadbeefissuedbyx402controller",
+  "x402_signature": "0x...",
+  "preferred_chain": "polygon",
+  "preferred_asset": "USDC"
+}
 ```
 
 ```json
 { "agent_id": "agt_4f9a2c7e", "wallet_id": "wlt_...", "migration_program": "public-preview", "migrated": true }
 ```
+
+> **Proof-of-possession required.** The migration MUST verify that the caller controls the `x402_identity` private key: the server issues a Per-request `x402_challenge` and the client returns `x402_signature` (over the canonical x402 challenge bytes) produced by the `x402_identity` key. The server verifies the signature against the public key embedded in the supplied `x402_identity` credential (e.g., a DID or signed JWT issued by the x402 controller). Without this check, a stolen `x402_identity` string could be migrated by an attacker who does not hold the corresponding private key. **Migration returned 422 / `AIFP-401` if signature verification fails.**
 
 ---
 
@@ -813,6 +845,19 @@ stateDiagram-v2
 ```
 
 A merchant MUST NOT require settlement *confirmation* before accepting a receipt: the receipt itself is the access credential, and AiFinPay assumes settlement risk for issued receipts. Where confirmation is required (high-value resources), the merchant MAY demand `425`-then-`200` semantics keyed on `tx_ref`.
+
+> **Settlement confirmation policy (operational, normative for control plane).** Issuing a receipt before on-chain finality is the protocol default to keep merchant serving fast. To bound AiFinPay's settlement-risk exposure, the following are **normative**:
+>
+> 1. **Minimum confirmation depth per chain** before a receipt is considered "settled-confirmed" (vs. "issued-unconfirmed"):
+>    - Bitcoin L1: ≥ 6 blocks
+>    - EVM Finality ≥ 12 (Polygon, BNB, Avalanche, Base, Arbitrum, Optimism, Unichain, BOT Chain, XRPL EVM): ≥ 12 blocks or finalized-subsequent depending on chain
+>    - Solana: finalized slot per cluster
+>    - NEAR / Aptos: ≥ 1 finality round
+>    - These minima are merchant-readable fields on `GET /v1/settlement/{tx_ref}` and on the `settlement.completed` webhook.
+> 2. **Circuit breaker.** If the control plane observes a settlement-failure rate exceeding a configurable threshold (default ≥ 1% rolling 1 h), it MUST pause *synchronized* (`200`) receipt issuance and fall back to *async* settlement (`202` + `425`-then-`200` per Section 9.1) until the failure rate subsides. The threshold SHOULD be tunable per chain.
+> 3. **`425` opt-in (high-value).** Merchants that serve high-value resources (`> $10` equivalent per request, configurable) MAY require `425`-then-`200` semantics: the agent presents the issued receipt, the merchant waits for the minimum confirmation depth before serving full content (intermediate response is `425 Too Early` with `Retry-After`), then serves the full response on confirmation. This is automatically true for `Settlement tier 3` merchants and configurable per resource tier.
+>
+> Issuance of a receipt remains synchronous and stateless for verification purposes; these controls protect the *control plane*'s financial risk only. Merchants in low-risk tiers are NOT affected.
 
 ---
 

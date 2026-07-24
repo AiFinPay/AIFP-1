@@ -1057,7 +1057,7 @@ Always include a structured body: `{ "error": { "type", "code", "message", "requ
 - **Clock skew:** allow ≤30s tolerance on `exp`.
 - **Idempotent challenges:** issuing a `402` must never consume quota or mutate state.
 - **Observability:** emit `aifp_402_total`, `aifp_verify_fail_total{reason}`, `aifp_receipt_redeemed_total`, p99 verify latency.
-- **Webhooks:** verify `AIFP-Signature` (HMAC-SHA256) + 5-min timestamp window before trusting any webhook.
+- **Webhooks:** verify `AIFP-Signature` (HMAC-SHA256) + 5-min timestamp window before trusting any webhook. **And track webhook event `id` for replay rejection (TTL ≥ 24 h, AIFP-1 §9.4).**
 
 ---
 

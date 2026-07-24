@@ -229,6 +229,8 @@ budget: {
 - `requireApprovalOver` fires the `onBeforePay` hook so a human or a higher-level policy can approve/deny.
 - Counters reset on rolling windows (daily/monthly) and are persisted by the SDK's storage adapter.
 
+> **Quote↔challenge binding.** When the SDK receives a Payment Challenge (`estimated_amount`), it MUST verify that the resulting Quote response `amount` does not exceed `estimated_amount × (1 + tolerance)` where `tolerance = 0.0` (no tolerance by default; merchants SHOULD advertise tolerance, if any, in `payment_challenge.estimated_max_factor`). A merchant that advertises an `estimated_amount` of `0.00001` and returns a Quote of `0.00010` for the same `(resource, pricing_tier)` is in violation — the SDK MUST raise `BudgetExceeded` and refuse to pay. Quote responses that exceed the challenge estimate without an advertised tolerance are treated as bait-and-switch.
+
 ```mermaid
 flowchart LR
     Q[Quote amount] --> A{<= perRequest?}
