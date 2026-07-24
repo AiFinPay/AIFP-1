@@ -33,8 +33,12 @@
   },
   "contributors": [
     {
-      "name": "AiFinPay Protocol Team",
-      "url": "https://aifinpay.io"
+      "name": "Dmitry Bugaenko",
+      "email": "contact@aifinpay.company"
+    },
+    {
+      "name": "Pavlo Bolhar",
+      "email": "pavlo.bolhar@proton.me"
     }
   ],
   "files": [
