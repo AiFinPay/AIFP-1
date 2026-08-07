@@ -1,0 +1,74 @@
+name: Remediation current docs
+
+on:
+  push:
+    branches:
+      - security/system-remediation-2026-08-07
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/system-remediation-2026-08-07
+      - name: Align current documentation only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          allowed_ext = {'.md', '.yaml', '.yml', '.json'}
+          for p in Path('.').rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in allowed_ext:
+                  continue
+              rel = p.as_posix()
+              # Preserve accepted historical AIPs and changelog history verbatim.
+              if rel.startswith('aips/') or rel == 'CHANGELOG.md' or rel.startswith('.github/'):
+                  continue
+              s = p.read_text(encoding='utf-8-sig')
+              s2 = (s
+                    .replace('$0.00001', '$0.0005')
+                    .replace('$0.00006', '$0.002')
+                    .replace('$0.00010', '$0.005')
+                    .replace('"0.00001"', '"0.0005"')
+                    .replace('"0.00006"', '"0.002"')
+                    .replace('"0.00010"', '"0.005"'))
+              if s2 != s:
+                  p.write_text(s2, encoding='utf-8')
+
+          readme = Path('README.md')
+          s = readme.read_text()
+          old = 'AiFinPay charges a **1% protocol fee** on successful transactions. The remaining **99% settles to the merchant**, excluding any applicable payment-network, gas, processor, or settlement costs.'
+          new = 'AiFinPay charges a **1% protocol fee on top of the merchant-configured price** for successful transactions. The merchant receives **100% of the configured price** before any separately disclosed payment-network, gas, processor, or settlement costs; the paying agent authorizes the merchant price plus the 1% protocol fee.'
+          if old not in s:
+              raise SystemExit('README fee paragraph not found')
+          s = s.replace(old, new)
+          marker = '## The Payment Layer For The Agent Economy\n'
+          disclaimer = '''## Production-Support Status\n\nThis repository defines the AIFP-1 protocol and target integration surface. **A documented network, asset, SDK, package, or example is not by itself evidence that the rail is live in production.** Production support is limited to functionality present in the audited release artifact, mapped to the canonical deployment registry, and covered by reproducible end-to-end tests. Unsupported or not-yet-deployed paths must fail closed.\n\n'''
+          if disclaimer not in s:
+              if marker not in s:
+                  raise SystemExit('README insertion marker not found')
+              s = s.replace(marker, disclaimer + marker, 1)
+          readme.write_text(s)
+          PY
+      - name: Guard against stale current pricing outside historical records
+        run: |
+          if grep -R -n -E '\$0\.00001|\$0\.00006|\$0\.00010' . \
+             --exclude=CHANGELOG.md --exclude-dir=aips --exclude-dir=.git --exclude-dir=.github; then
+            echo 'Stale current pricing remains' >&2
+            exit 1
+          fi
+      - name: Commit current-doc remediation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md AGENTS.md docs schemas examples sdk || true
+          if git diff --cached --quiet; then
+            echo "No current-doc changes"
+            exit 0
+          fi
+          git commit -m "docs: align AIFP-1 pricing and production support posture"
+          git push origin HEAD:security/system-remediation-2026-08-07
