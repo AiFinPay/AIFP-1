@@ -212,6 +212,7 @@ Both AIFP-1 and MPP activate the HTTP `402 Payment Required` status code for mac
 ## 8. Strengths & Weaknesses
 
 ### AIFP-1 Strengths
+
 1. **Stateless local verification** — merchants never depend on backend for per-request verification
 2. **Rich identity system** — Agent Passport, reputation, delegation, budgets
 3. **Simplified merchant integration** — one gateway, uniform receipt format
@@ -221,6 +222,7 @@ Both AIFP-1 and MPP activate the HTTP `402 Payment Required` status code for mac
 7. **Settlement risk assumption** — AiFinPay assumes risk for issued receipts
 
 ### AIFP-1 Weaknesses
+
 1. **Centralized dependency** — single gateway, single issuer authority
 2. **Limited payment methods** — fixed to AiFinPay-supported rails
 3. **No session/subscription** — only one-time payments in v1.0.0
@@ -229,6 +231,7 @@ Both AIFP-1 and MPP activate the HTTP `402 Payment Required` status code for mac
 6. **Self-published spec** — not an IETF or other standards-track document
 
 ### MPP Strengths
+
 1. **IETF standardization** — `draft-httpauth-payment-00`, paymentauth.org
 2. **Extensible payment methods** — anyone can define new methods
 3. **Multiple intents** — charge, session, subscription
@@ -238,6 +241,7 @@ Both AIFP-1 and MPP activate the HTTP `402 Payment Required` status code for mac
 7. **Decentralized** — no single point of failure
 
 ### MPP Weaknesses
+
 1. **No unified identity** — no agent passport, reputation, or delegation
 2. **No budget controls** — no native spend management
 3. **No free quota** — no protocol-level free tier
@@ -250,15 +254,19 @@ Both AIFP-1 and MPP activate the HTTP `402 Payment Required` status code for mac
 ## 9. Recommendations
 
 ### For Merchants
+
 - **Choose AIFP-1 if:** You want the simplest possible integration (one gateway, one verification path), need stateless verification at scale, require identity/budget controls, or operate in a regulated environment.
 - **Choose MPP if:** You need multiple payment methods (especially cards via Stripe), want session/subscription support, prefer decentralized architecture, or need framework-specific middleware.
 
 ### For Agents
+
 - **Choose AIFP-1 if:** You need budget controls, reputation management, or operate in an enterprise context where identity and spend caps are required.
 - **Choose MPP if:** You want the broadest payment method coverage, need session-based streaming payments, or prefer a decentralized ecosystem.
 
 ### For Protocol Development
+
 AIFP-1 should prioritize:
+
 1. **Standardizing the HTTP transport** — adopt WWW-Authenticate/Authorization headers per IETF auth scheme conventions
 2. **Adding payment intents** — session and subscription support
 3. **Expanding the SDK ecosystem** — framework middleware, CLI, proxy support
@@ -266,6 +274,7 @@ AIFP-1 should prioritize:
 5. **Pursuing IETF standardization** — submit as an Internet-Draft
 
 MPP should prioritize:
+
 1. **Building identity/reputation** — agent passport, spend controls
 2. **Adding webhook/event system** — payment lifecycle notifications
 3. **Defining onboarding flows** — help agents that don't yet support MPP
@@ -278,6 +287,12 @@ MPP should prioritize:
 AIFP-1 and MPP solve the same problem from different angles. AIFP-1 is a **complete, opinionated system** optimized for enterprise-grade agent payments with strong identity, budget, and verification guarantees. MPP is an **open, extensible standard** optimized for broad payment method coverage and decentralized operation.
 
 The protocols are **complementary** rather than directly competitive. An ideal future state would combine AIFP-1's identity/budget/verification model with MPP's extensible payment methods, multiple intents, and standard HTTP auth transport. There is a realistic path toward convergence, especially given both protocols' x402 compatibility layer.
+
+---
+
+## AIP Status
+
+This comparison is also maintained as an AiFinPay Improvement Proposal: [AIP-0018 — AIFP-1 vs MPP — Protocol Comparison and Convergence Analysis](../../../aips/aip-0018.md). Future normative changes derived from this analysis will be tracked as separate standards-track AIPs.
 
 ---
 
