@@ -1,8 +1,0 @@
-﻿# Repository ownership
-
-* @AiFinPay/maintainers
-/docs/aifp/ @AiFinPay/protocol
-/docs/aifp/08-OpenAPI-3.1-Specification.yaml @AiFinPay/api
-/docs/aifp/10-JSON-Schemas.md @AiFinPay/api
-/.github/ @AiFinPay/maintainers
-/SECURITY.md @AiFinPay/security

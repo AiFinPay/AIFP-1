@@ -1,4 +1,0 @@
-Contact: mailto:security@aifinpay.io
-Acknowledgments: https://github.com/aifinpay/paywall/blob/main/SECURITY.md
-Preferred-Languages: en
-Policy: https://github.com/aifinpay/paywall/blob/main/SECURITY.md
