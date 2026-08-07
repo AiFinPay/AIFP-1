@@ -1,0 +1,7 @@
+# Markdown lint configuration for the AIFP repository.
+# Technical specifications use wide tables and long URLs, so we disable
+# rules that are impractical for this content.
+
+config:
+  MD013: false   # Line length — tables and RFC-style prose need long lines.
+  MD060: false   # Table column style — compact tables are acceptable.

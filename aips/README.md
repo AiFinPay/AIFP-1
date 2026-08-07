@@ -17,6 +17,7 @@ See [AIP-0001](aip-0001.md) for the full proposal process.
 | [19](aip-0019.md) | AIFP-403-BUDGET-EXCEEDED Error | Standards Track | Interface | Final |
 | [23](aip-0023.md) | Streaming Payments via mSECCO Channels | Standards Track | Core | Accepted |
 | [31](aip-0031.md) | Dynamic Pricing Reputation Discount Cap | Informational | N/A | Final |
+| [18](aip-0018.md) | AIFP-1 vs MPP — Protocol Comparison and Convergence Analysis | Informational | N/A | Draft |
 
 ## AIP Types
 
@@ -28,7 +29,7 @@ See [AIP-0001](aip-0001.md) for the full proposal process.
 
 ## AIP Status Flow
 
-```
+```text
 Idea ──► Draft ──► Review ──► Last Call ──► Accepted ──► Final
 ```
 
