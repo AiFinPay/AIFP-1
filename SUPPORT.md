@@ -11,16 +11,6 @@ Use the right channel so maintainers can respond quickly.
 | Security vulnerability | Email security@aifinpay.io |
 | Documentation issue | Open a pull request or documentation issue |
 
-## Before Asking
-
-Please check:
-
-- `README.md`
-- `docs/index.md`
-- `docs/aifp/README.md`
-- `docs/aifp/01-AIFP-1-RFC-Payment-Protocol-Specification.md`
-- `docs/aifp/07-Quick-Start-Guide.md`
-- `docs/aifp/08-OpenAPI-3.1-Specification.yaml`
 
 ## Useful Context
 
