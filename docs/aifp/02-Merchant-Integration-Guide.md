@@ -129,7 +129,7 @@ A merchant maps a request to a **pricing_tier tier**, which maps to a **price**.
 export type PricingTier = "standard" | "complex" | "premium";
 
 const PRICE: Record<PricingTier, string> = {
-  standard: "0.00001", complex: "0.00006", premium: "0.00010",
+  standard: "0.0005", complex: "0.002", premium: "0.005",
 };
 
 const ROUTE_TIER: { test: RegExp; tier: PricingTier }[] = [
@@ -398,7 +398,7 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 
 const JWKS = createRemoteJWKSet(new URL("https://api.aifinpay.io/.well-known/jwks.json"));
 const MERCHANT_ID = process.env.AIFP_MERCHANT_ID!;
-const PRICE = { standard: "0.00001", complex: "0.00006", premium: "0.00010" } as const;
+const PRICE = { standard: "0.0005", complex: "0.002", premium: "0.005" } as const;
 
 export async function middleware(req: NextRequest) {
   const resource = req.nextUrl.pathname;
@@ -447,7 +447,7 @@ import redis.asyncio as redis
 MERCHANT_ID = "mrch_9f3a1c2b"
 ISSUER = "https://api.aifinpay.io"
 JWKS_URL = "https://api.aifinpay.io/.well-known/jwks.json"
-PRICE = {"standard": "0.00001", "complex": "0.00006", "premium": "0.00010"}
+PRICE = {"standard": "0.0005", "complex": "0.002", "premium": "0.005"}
 FREE_QUOTA = 100
 r = redis.from_url("redis://localhost")
 
@@ -524,7 +524,7 @@ import redis
 
 MERCHANT_ID = "mrch_9f3a1c2b"; ISSUER = "https://api.aifinpay.io"
 JWKS = httpx.get("https://api.aifinpay.io/.well-known/jwks.json", timeout=5).json()
-PRICE = {"standard": "0.00001"}; FREE_QUOTA = 100
+PRICE = {"standard": "0.0005"}; FREE_QUOTA = 100
 R = redis.from_url("redis://localhost")
 
 class AifpMiddleware:
@@ -654,7 +654,7 @@ public class AifpFilter extends OncePerRequestFilter {
       JWTClaimsSet c = p.process(token, null);
       if (!MERCHANT.equals(c.getAudience().get(0)) || !resource.equals(c.getStringClaim("resource")))
         { res.setStatus(422); return; }
-      if (new java.math.BigDecimal(c.getStringClaim("amount")).compareTo(new java.math.BigDecimal("0.00001")) < 0) { res.setStatus(422); return; }
+      if (new java.math.BigDecimal(c.getStringClaim("amount")).compareTo(new java.math.BigDecimal("0.0005")) < 0) { res.setStatus(422); return; }
       String nonce = c.getStringClaim("nonce");
       long ttl = Math.max(1, c.getExpirationTime().getTime()/1000 - System.currentTimeMillis()/1000);
       Boolean consumed = redis.opsForValue().setIfAbsent("n:" + nonce, "1", Duration.ofSeconds(ttl));
@@ -723,7 +723,7 @@ public class AifpMiddleware {
         await ctx.Response.WriteAsJsonAsync(new {
             error = new { code = "AIFP-402" },
             payment_challenge = new { version = "1.0", scheme = "aifp", merchant_id = Merchant,
-                resource, pricing_tier = "standard", estimated_amount = "0.00001",
+                resource, pricing_tier = "standard", estimated_amount = "0.0005",
                 quote_endpoint = $"{Issuer}/v1/quote" } });
     }
 }
@@ -771,7 +771,7 @@ func Middleware(rdb *redis.Client, keyfunc jwt.Keyfunc) func(http.Handler) http.
 			c := tok.Claims.(jwt.MapClaims)
 			if c["resource"] != resource { w.WriteHeader(422); return }
 			amt, _ := decimal.NewFromString(c["amount"].(string))
-			required := decimal.RequireFromString("0.00001")
+			required := decimal.RequireFromString("0.0005")
 			if amt.LessThan(required) { w.WriteHeader(422); return }
 			nonce := c["nonce"].(string)
 			ok, _ := rdb.SetNX(ctx, "n:"+nonce, "1", 600*time.Second).Result()
@@ -789,7 +789,7 @@ func challenge(w http.ResponseWriter, resource string) {
 		"error": map[string]string{"code": "AIFP-402"},
 		"payment_challenge": map[string]any{"version": "1.0", "scheme": "aifp",
 			"merchant_id": merchant, "resource": resource, "pricing_tier": "standard",
-			"estimated_amount": "0.00001", "quote_endpoint": issuer + "/v1/quote",
+			"estimated_amount": "0.0005", "quote_endpoint": issuer + "/v1/quote",
 			"expires_at": time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)},
 	})
 }
@@ -841,7 +841,7 @@ fn challenge(resource: &str) -> Response {
     (StatusCode::PAYMENT_REQUIRED, [("Accept-Payment", "aifp/1.0")],
      Json(json!({ "error": {"code":"AIFP-402"},
         "payment_challenge": {"version":"1.0","scheme":"aifp","merchant_id":MERCHANT,
-            "resource":resource,"pricing_tier":"standard","estimated_amount":"0.00001",
+            "resource":resource,"pricing_tier":"standard","estimated_amount":"0.0005",
             "quote_endpoint": format!("{ISSUER}/v1/quote")} }))).into_response()
 }
 ```
@@ -869,7 +869,7 @@ export default {
     const challenge = () => new Response(JSON.stringify({
       error: { code: "AIFP-402" },
       payment_challenge: { version: "1.0", scheme: "aifp", merchant_id: MERCHANT,
-        resource: url.pathname, pricing_tier: "standard", estimated_amount: "0.00001",
+        resource: url.pathname, pricing_tier: "standard", estimated_amount: "0.0005",
         quote_endpoint: "https://api.aifinpay.io/v1/quote", nonce: crypto.randomUUID(),
         expires_at: new Date(Date.now() + 300000).toISOString() } }),
       { status: 402, headers: { "Accept-Payment": "aifp/1.0", "Content-Type": "application/json" } });
@@ -928,7 +928,7 @@ function challenge(r) {
   r.headersOut["Content-Type"] = "application/json";
   r.return(402, JSON.stringify({ error: { code: "AIFP-402" },
     payment_challenge: { version: "1.0", scheme: "aifp", merchant_id: MERCHANT,
-      resource: r.uri, pricing_tier: "standard", estimated_amount: "0.00001",
+      resource: r.uri, pricing_tier: "standard", estimated_amount: "0.0005",
       quote_endpoint: "https://api.aifinpay.io/v1/quote" } }));
 }
 export default { verify, challenge };
@@ -974,7 +974,7 @@ function challenge(r)
   r.content_type = "application/json"
   r:write(cjson.encode({ error = { code = "AIFP-402" },
     payment_challenge = { version = "1.0", scheme = "aifp", merchant_id = MERCHANT,
-      resource = r.uri, pricing_tier = "standard", estimated_amount = "0.00001",
+      resource = r.uri, pricing_tier = "standard", estimated_amount = "0.0005",
       quote_endpoint = "https://api.aifinpay.io/v1/quote" } }))
   return 402
 end

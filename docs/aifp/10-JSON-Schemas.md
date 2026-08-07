@@ -31,9 +31,9 @@ Each schema below is independently publishable as a `.json` file under the `$id`
 
 | Tier | Minimum amount | Intended use |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request. |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute. |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data. |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request. |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute. |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data. |
 
 The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining `99%` is settled to the merchant, excluding any applicable payment-network or settlement costs.
 
@@ -54,7 +54,7 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     },
     "tierMinimumAmount": {
       "type": "string",
-      "enum": ["0.00001", "0.00006", "0.00010"],
+      "enum": ["0.0005", "0.002", "0.005"],
       "description": "Minimum USD amount for the selected pricing tier."
     },
     "protocolFeeRate": {
@@ -72,8 +72,8 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
       "type": "string",
       "enum": ["solana", "polygon", "avalanche", "bnb", "optimism", "arbitrum", "base", "unichain", "bot_chain", "xrpl_evm", "near", "aptos"]
     },
-    "decimalUsd": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2,8}$", "examples": ["0.00001", "0.00006", "0.00010"], "description": "Per-request micropayment amount (2-8 fractional digits, no whole-dollar form)." },
-    "monetaryUsd": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,8})?$", "examples": ["0.00001", "50.00", "100", "5"], "description": "Larger monetary value (settlement, payout, budget cap). Allows whole-dollar amounts; fractional part optional, 1-8 digits." },
+    "decimalUsd": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2,8}$", "examples": ["0.0005", "0.002", "0.005"], "description": "Per-request micropayment amount (2-8 fractional digits, no whole-dollar form)." },
+    "monetaryUsd": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,8})?$", "examples": ["0.0005", "50.00", "100", "5"], "description": "Larger monetary value (settlement, payout, budget cap). Allows whole-dollar amounts; fractional part optional, 1-8 digits." },
     "merchantId": { "type": "string", "pattern": "^mrch_[A-Za-z0-9]+$" },
     "agentId": { "type": "string", "pattern": "^agt_[A-Za-z0-9]+$" },
     "walletId": { "type": "string", "pattern": "^wlt_[A-Za-z0-9]+$" },

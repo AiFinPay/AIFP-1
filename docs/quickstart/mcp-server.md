@@ -57,7 +57,7 @@ Example sandbox response:
   "merchant_id": "mrch_sandbox_01",
   "resource": "/api/data",
   "pricing_tier": "standard",
-  "amount": "0.00001",
+  "amount": "0.0005",
   "currency": "USD"
 }
 ```

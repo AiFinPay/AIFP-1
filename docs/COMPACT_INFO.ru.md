@@ -103,7 +103,7 @@ Ed25519 верификация ≈ **50,000 операций/сек на ядр�
     "action": "search",
     "resource": "/api/company?q=Acme",
     "pricing_tier": "complex",
-    "max_price_usd": "0.00010"
+    "max_price_usd": "0.005"
   }
 }
 ```
@@ -162,7 +162,7 @@ GET /.well-known/agent.json
     {
       "action": "search",
       "pricing_tiers": ["standard", "complex"],
-      "max_price_usd": "0.00010",
+      "max_price_usd": "0.005",
       "accepted_assets": ["USDC", "USDT"],
       "accepted_chains": ["polygon", "base"]
     }
@@ -263,9 +263,9 @@ QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → Recei
 
 | Tier | Минимум | Пример |
 |---|---|---|
-| **Standard** | $0.00001 | Простой read, одна запись |
-| **Complex** | $0.00006 | Поиск, агрегация |
-| **Premium** | $0.00010 | AI inference, GPU |
+| **Standard** | $0.0005 | Простой read, одна запись |
+| **Complex** | $0.002 | Поиск, агрегация |
+| **Premium** | $0.005 | AI inference, GPU |
 
 **Комиссия AiFinPay:** 1% от каждой транзакции. Остальные 99% → мерчант (минус network costs).
 

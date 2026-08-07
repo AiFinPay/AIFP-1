@@ -154,7 +154,7 @@ This document. Defines the process by which all other AIPs are created and ratif
 ### AIP-2 — Core Payment Protocol *(Standards Track · Core, Final)*
 **Abstract.** Ratifies AIFP-1 (Doc 01) as the normative protocol: HTTP-402 challenge,
 quote/pay/receipt loop, Ed25519 stateless receipts (TTL 600s), agent action pricing tiers
-(Standard from $0.00001 / Complex from $0.00006 / Premium from $0.00010), 1% AiFinPay
+(Standard from $0.0005 / Complex from $0.002 / Premium from $0.005), 1% AiFinPay
 protocol fee, merchant settlement of the remaining 99% excluding applicable network or
 settlement costs, idempotency (24h), and error registry. **Backward Compatibility:**
 baseline; nothing to break.

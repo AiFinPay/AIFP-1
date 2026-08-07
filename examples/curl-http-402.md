@@ -1,4 +1,4 @@
-﻿# Raw HTTP 402 Flow
+# Raw HTTP 402 Flow
 
 This example shows the protocol without an SDK.
 
@@ -24,7 +24,7 @@ Content-Type: application/json
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.00001",
+    "estimated_amount": "0.0005",
     "currency": "USD",
     "quote_endpoint": "https://api.aifinpay.io/v1/quote"
   }

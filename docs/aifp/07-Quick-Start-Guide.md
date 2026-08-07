@@ -24,9 +24,9 @@ Pricing is action-tier based:
 
 | Tier | Starts From | Typical action |
 |---|---:|---|
-| Standard | **$0.00001** | Simple read, single record, lightweight API request |
-| Complex | **$0.00006** | Search, aggregation, multi-source queries, higher compute |
-| Premium | **$0.00010** | AI inference, GPU workloads, deep analytics, premium data |
+| Standard | **$0.0005** | Simple read, single record, lightweight API request |
+| Complex | **$0.002** | Search, aggregation, multi-source queries, higher compute |
+| Premium | **$0.005** | AI inference, GPU workloads, deep analytics, premium data |
 
 AiFinPay charges a **1% protocol fee** on every successful transaction. The remaining **99%** is settled to the merchant, excluding any applicable payment network or settlement costs.
 
@@ -52,7 +52,7 @@ import { aifp } from "@aifinpay/merchant";
 
 const app = express();
 
-// Charges the Standard action tier (from $0.00001) for /api/data.
+// Charges the Standard action tier (from $0.0005) for /api/data.
 app.use("/api/data", aifp.protect({
   apiKey: process.env.AIFP_KEY,          // sk_test_...
   merchantId: "mrch_9f3a1c2b",
@@ -108,7 +108,7 @@ print(resp.aifp.receipt_id) # rcpt_7b3e9f21
 ### c. What happened under the hood
 
 ```http
-GET /api/data                          -> 402 + AIFP challenge (qt url, nonce, from $0.00001)
+GET /api/data                          -> 402 + AIFP challenge (qt url, nonce, from $0.0005)
 POST /v1/quote {merchant,resource}     -> 200 quote_id=qt_8d21f0
 POST /v1/pay   {quote_id,wallet,asset} -> 200 receipt (EdDSA JWT), tx_ref=0xabc...
 GET /api/data  Payment-Receipt: <jwt>   -> 200 payload
@@ -182,7 +182,7 @@ AIFP_KEY=sk_test_... node merchant.js
 
 # Terminal 2 — run an agent that pays through
 AIFP_KEY=sk_test_... node agent.js
-# -> 402 detected, quoted Standard from $0.00001, paid, receipt rcpt_..., got payload
+# -> 402 detected, quoted Standard from $0.0005, paid, receipt rcpt_..., got payload
 ```
 
 ---

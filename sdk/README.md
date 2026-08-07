@@ -1,4 +1,4 @@
-﻿# SDKs
+# SDKs
 
 AiFinPay SDKs provide merchant middleware, agent auto-pay clients, receipt verification, wallet binding, pricing helpers, and generated protocol types.
 
@@ -18,9 +18,9 @@ AiFinPay SDKs provide merchant middleware, agent auto-pay clients, receipt verif
 
 | Helper | Value |
 |---|---|
-| `standard` | From `$0.00001` for simple reads, single records, and lightweight API requests. |
-| `complex` | From `$0.00006` for search, aggregation, multi-source queries, and higher compute. |
-| `premium` | From `$0.00010` for AI inference, GPU workloads, deep analytics, and premium data. |
+| `standard` | From `$0.0005` for simple reads, single records, and lightweight API requests. |
+| `complex` | From `$0.002` for search, aggregation, multi-source queries, and higher compute. |
+| `premium` | From `$0.005` for AI inference, GPU workloads, deep analytics, and premium data. |
 | `protocolFeeRate` | `0.01`, representing the AiFinPay Protocol Fee of 1%. |
 | `merchantSettlementRate` | `0.99`, before applicable network or settlement costs. |
 

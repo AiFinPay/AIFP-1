@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="assets/brand/aifp-1-protocol-hero.png" alt="AIFP-1 Protocol" width="720" />
 </p>
 
@@ -17,6 +17,10 @@
 </p>
 
 ---
+
+## Production-Support Status
+
+This repository defines the AIFP-1 protocol and target integration surface. **A documented network, asset, SDK, package, or example is not by itself evidence that the rail is live in production.** Production support is limited to functionality present in the audited release artifact, mapped to the canonical deployment registry, and covered by reproducible end-to-end tests. Unsupported or not-yet-deployed paths must fail closed.
 
 ## The Payment Layer For The Agent Economy
 
@@ -78,11 +82,11 @@ and machine-to-machine commerce. The intent is compatibility and specialization,
 
 | Tier | Starts From | Intended Workload |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
-AiFinPay charges a **1% protocol fee** on successful transactions. The remaining **99% settles to the merchant**, excluding any applicable payment-network, gas, processor, or settlement costs.
+AiFinPay charges a **1% protocol fee on top of the merchant-configured price** for successful transactions. The merchant receives **100% of the configured price** before any separately disclosed payment-network, gas, processor, or settlement costs; the paying agent authorizes the merchant price plus the 1% protocol fee.
 
 Learn more in [Protocol Economics](docs/economics.md).
 
@@ -170,7 +174,7 @@ sequenceDiagram
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.00001",
+    "estimated_amount": "0.0005",
     "currency": "USD",
     "accepted_assets": ["USDC", "USDT", "PYUSD"],
     "accepted_chains": ["polygon", "base", "solana"],

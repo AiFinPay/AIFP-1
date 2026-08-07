@@ -158,7 +158,7 @@ An agent requests work from another agent:
     "action": "search",
     "resource": "/api/company?q=Acme+Corp",
     "pricing_tier": "complex",
-    "max_price_usd": "0.00010",
+    "max_price_usd": "0.005",
     "timeout_seconds": 30,
     "metadata": { "correlation_id": "task_abc123" }
   }
@@ -199,7 +199,7 @@ The recipient agent requires payment before processing the request:
       "merchant_id": "agt_8b3c1d5f",
       "resource": "/api/company?q=Acme+Corp",
       "pricing_tier": "complex",
-      "estimated_amount": "0.00006",
+      "estimated_amount": "0.002",
       "currency": "USD",
       "nonce": "b7e2...c91a",
       "expires_at": "2026-07-24T12:05:00Z"
@@ -325,14 +325,14 @@ Response:
     {
       "action": "search",
       "pricing_tiers": ["standard", "complex"],
-      "max_price_usd": "0.00010",
+      "max_price_usd": "0.005",
       "accepted_assets": ["USDC", "USDT"],
       "accepted_chains": ["polygon", "base"]
     },
     {
       "action": "retrieve",
       "pricing_tiers": ["standard"],
-      "max_price_usd": "0.00001",
+      "max_price_usd": "0.0005",
       "accepted_assets": ["USDC"],
       "accepted_chains": ["polygon"]
     }
