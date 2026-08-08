@@ -20,7 +20,7 @@ Every price-bearing schema should model action pricing as a tiered micropayment 
 | `complex` | `$0.002` | Search, aggregation, multi-source queries, and higher-compute requests. |
 | `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, and premium data. |
 
-Successful transactions apply the AiFinPay Protocol Fee of `1%`; the remaining `99%` settles to the merchant, excluding applicable payment-network or settlement costs.
+Successful transactions add the AiFinPay Protocol Fee of `1%` on top of the configured merchant amount, which settles in full, excluding applicable payment-network or settlement costs.
 
 ## Validation Targets
 

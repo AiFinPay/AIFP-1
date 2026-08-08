@@ -267,7 +267,7 @@ QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → Recei
 | **Complex** | $0.002 | Поиск, агрегация |
 | **Premium** | $0.005 | AI inference, GPU |
 
-**Комиссия AiFinPay:** 1% от каждой транзакции. Остальные 99% → мерчант (минус network costs).
+**Комиссия AiFinPay:** 1% начисляется сверху суммы мерчанта. Мерчант получает указанную сумму полностью (минус network costs).
 
 ---
 

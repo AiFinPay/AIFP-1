@@ -26,6 +26,6 @@ Expected behavior:
 
 1. Paid actions return `402 Payment Required` when no valid receipt is present.
 2. The agent quotes the Standard tier, starting from `$0.0005`.
-3. The agent pays, AiFinPay applies a 1% protocol fee, and 99% settles to the merchant excluding network or settlement costs.
+3. The agent pays the merchant amount plus a 1% AiFinPay fee; the configured merchant amount settles in full, excluding network or settlement costs.
 4. Requests retried with a valid receipt return `200`.
 5. Invalid, expired, or replayed receipts are rejected.

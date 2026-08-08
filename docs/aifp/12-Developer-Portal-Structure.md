@@ -157,7 +157,7 @@ Each card links source repo (Doc 15), changelog, and the SDK Reference (Doc 11) 
 - *Do I call AiFinPay to verify a receipt?* No — verification is local/stateless (§7.4).
 - *Which chains/assets?* 12 networks; USDC/USDT/PYUSD (Doc 01 App. B).
 - *How do micropayments work?* Agent actions are priced by tier: Standard from $0.0005, Complex from $0.002, Premium from $0.005.
-- *What is the protocol fee?* AiFinPay charges 1% on successful transactions; 99% settles to the merchant, excluding applicable network or settlement costs.
+- *What is the protocol fee?* AiFinPay adds 1% on top of the merchant amount; the configured merchant amount settles in full, excluding applicable network or settlement costs.
 - *Is it x402-compatible?* Yes. Migration incentives, if any, are published through the official developer portal.
 
 ---

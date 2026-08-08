@@ -143,7 +143,7 @@ An AIFP-1 implementation is designed against eight principles. These are normati
 2. **Stateless verification.** A merchant MUST be able to verify a receipt locally by signature, without contacting the AiFinPay backend.
 3. **HTTP-native.** The protocol MUST rely on standard HTTP semantics — `402`, standard headers, idempotency.
 4. **x402 compatibility.** Where appropriate, AIFP SHOULD interoperate with the x402 ecosystem.
-5. **Multi-chain and fiat-agnostic.** Settlement MAY occur in stablecoins across 12 supported networks or in fiat.
+5. **Multi-chain and fiat-agnostic.** The protocol defines a 12-network capability inventory, but production settlement MUST be enabled only for routes backed by verified deployment evidence.
 6. **Secure by default.** Replay, double-spend, and MITM protections MUST be built in, not optional add-ons.
 7. **Enterprise scale.** The architecture MUST sustain millions of requests per second and billions of receipts per day.
 8. **Open protocol.** The specification SHOULD remain open; implementations MAY compete.
@@ -636,7 +636,7 @@ AIFP extends the base x402 model with:
 | Extension | Description |
 |---|---|
 | **Ed25519 receipt signing** | Cryptographic proof of payment, verifiable locally without backend calls. |
-| **Multi-chain settlement** | Stablecoin payouts across 12 supported networks. |
+| **Multi-chain settlement** | Capability inventory across 12 networks; live routes require verified deployment evidence. |
 | **Hybrid fiat settlement** | Regulated fiat rails for enterprise merchants. |
 | **Agent budgets** | Per-window, per-request, and per-merchant spend caps. |
 | **Agent Passport** | Portable signed identity with reputation and delegation. |
@@ -1237,7 +1237,7 @@ None of these are required for AIFP-1 conformance; all are optional and capabili
 | **Stateless Verification** | Local receipt validation with no backend call. |
 | **x402** | Adjacent `402`-based payment ecosystem AIFP interoperates with. |
 
-# Appendix B. Supported Networks
+# Appendix B. Network Capability Targets
 
 | Tier | Networks | Capabilities |
 |---|---|---|
@@ -1246,6 +1246,8 @@ None of these are required for AIFP-1 conformance; all are optional and capabili
 | **Splitter MVP non-EVM (2)** | NEAR, Aptos | Payment splitter (MVP) |
 
 Accepted assets: `USDC`, `USDT`, `PYUSD` (network-dependent). Fiat/stablecoin hybrid settlement is supported through regulated settlement rails.
+
+This table is a protocol capability target, not a production deployment registry. Implementations MUST fail closed unless the exact route is backed by current deployment evidence and reproducible end-to-end tests.
 
 # Appendix C. Complete Error Registry
 

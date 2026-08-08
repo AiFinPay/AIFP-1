@@ -32,7 +32,7 @@ supplied.
 | `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute |
 | `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
-AiFinPay applies a **1% protocol fee** to every successful transaction. The remaining **99%** is settled to the merchant, excluding applicable payment network or settlement costs.
+AiFinPay adds a **1% protocol fee** on top of the configured merchant amount. The merchant amount settles in full, excluding applicable payment network or settlement costs.
 
 ---
 

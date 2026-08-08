@@ -40,5 +40,4 @@ All examples use:
 | `complex` | `$0.002` |
 | `premium` | `$0.005` |
 
-Protocol fee is 1%; merchant settlement is 99% before external costs.
-
+The merchant amount is settled in full; the 1% protocol fee is added on top before external costs.

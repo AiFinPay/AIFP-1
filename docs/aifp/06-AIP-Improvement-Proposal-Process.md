@@ -155,13 +155,13 @@ This document. Defines the process by which all other AIPs are created and ratif
 **Abstract.** Ratifies AIFP-1 (Doc 01) as the normative protocol: HTTP-402 challenge,
 quote/pay/receipt loop, Ed25519 stateless receipts (TTL 600s), agent action pricing tiers
 (Standard from $0.0005 / Complex from $0.002 / Premium from $0.005), 1% AiFinPay
-protocol fee, merchant settlement of the remaining 99% excluding applicable network or
+protocol fee added on top, full merchant-amount settlement excluding applicable network or
 settlement costs, idempotency (24h), and error registry. **Backward Compatibility:**
 baseline; nothing to break.
 
 ### AIP-7 — Add Unichain to Full Core Networks *(Standards Track · Networks, Final)*
 **Abstract.** Adds Unichain to the Full Core tier (Core + Passport + mSECCO + Pyth),
-bringing supported networks to **12**. **Spec:** add `unichain` to the `chain` enum
+bringing documented network capability targets to **12**. **Spec:** add `unichain` to the `chain` enum
 (Doc 08/10), publish payout-address format, extend conformance vectors. **Backward
 Compatibility:** MINOR — new optional chain; existing clients unaffected.
 

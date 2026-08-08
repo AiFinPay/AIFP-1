@@ -35,7 +35,7 @@ Each schema below is independently publishable as a `.json` file under the `$id`
 | `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute. |
 | `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data. |
 
-The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining `99%` is settled to the merchant, excluding any applicable payment-network or settlement costs.
+The AiFinPay Protocol Fee is `1%` of the merchant amount and is added on top. The configured merchant amount settles in full, excluding any applicable payment-network or settlement costs.
 
 ---
 
@@ -64,8 +64,8 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
     },
     "merchantSettlementRate": {
       "type": "number",
-      "const": 0.99,
-      "description": "Merchant settlement share before external network or settlement costs."
+      "const": 1.0,
+      "description": "The configured merchant amount settles in full before external network or settlement costs."
     },
     "asset": { "type": "string", "enum": ["USDC", "USDT", "PYUSD"] },
     "chain": {

@@ -7,7 +7,7 @@ paths. Use the quickstarts for hands-on setup and the core concepts for the flow
 
 | Mode | Description |
 |---|---|
-| Stablecoin | USDC, USDT, and PYUSD settlement on supported networks |
+| Stablecoin | USDC, USDT, and PYUSD inventory; settlement only on verified enabled routes |
 | Fiat hybrid | Fiat on/off-ramp with stablecoin settlement via a partner rail |
 | Custodial | Platform-managed wallet for agents |
 | Non-custodial | Agent or user-controlled wallet |

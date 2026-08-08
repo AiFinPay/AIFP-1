@@ -28,7 +28,7 @@ Pricing is action-tier based:
 | Complex | **$0.002** | Search, aggregation, multi-source queries, higher compute |
 | Premium | **$0.005** | AI inference, GPU workloads, deep analytics, premium data |
 
-AiFinPay charges a **1% protocol fee** on every successful transaction. The remaining **99%** is settled to the merchant, excluding any applicable payment network or settlement costs.
+AiFinPay adds a **1% protocol fee** on top of the configured merchant amount. The merchant amount settles in full, excluding any applicable payment network or settlement costs.
 
 ---
 

@@ -100,7 +100,7 @@ Do not change these without an accepted AIP and a migration plan:
 | Constant | Value |
 |---|---|
 | Protocol fee rate | `0.01` (1%) |
-| Merchant settlement rate | `0.99` (99%, before network/settlement costs) |
+| Merchant settlement | Configured merchant amount in full; protocol fee is added on top |
 | Tier `standard` | from `$0.0005` |
 | Tier `complex` | from `$0.002` |
 | Tier `premium` | from `$0.005` |

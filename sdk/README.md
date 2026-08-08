@@ -22,7 +22,7 @@ AiFinPay SDKs provide merchant middleware, agent auto-pay clients, receipt verif
 | `complex` | From `$0.002` for search, aggregation, multi-source queries, and higher compute. |
 | `premium` | From `$0.005` for AI inference, GPU workloads, deep analytics, and premium data. |
 | `protocolFeeRate` | `0.01`, representing the AiFinPay Protocol Fee of 1%. |
-| `merchantSettlementRate` | `0.99`, before applicable network or settlement costs. |
+| `merchantSettlementRate` | `1.0`; the configured merchant amount settles in full before applicable network or settlement costs. |
 
 ## SDK Architecture
 
@@ -55,4 +55,3 @@ flowchart TD
 - [SDK Reference](../docs/aifp/11-SDK-Reference.md)
 - [OpenAPI 3.1](../docs/aifp/08-OpenAPI-3.1-Specification.yaml)
 - [JSON Schemas](../docs/aifp/10-JSON-Schemas.md)
-

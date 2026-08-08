@@ -548,7 +548,7 @@ components:
     Chain:
       type: string
       description: |
-        One of the 12 supported networks. Full Core (8): solana, polygon, avalanche,
+        One of the 12 documented network capability targets. Production settlement requires verified deployment evidence. Full Core targets (8): solana, polygon, avalanche,
         bnb, optimism, arbitrum, base, unichain. Splitter-only EVM (2): bot_chain,
         xrpl_evm. Splitter MVP non-EVM (2): near, aptos.
       enum: [solana, polygon, avalanche, bnb, optimism, arbitrum, base, unichain, bot_chain, xrpl_evm, near, aptos]

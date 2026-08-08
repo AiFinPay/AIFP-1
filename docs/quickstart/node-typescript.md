@@ -11,7 +11,7 @@
 ## Install
 
 ```bash
-npm install @aifinpay/agent@alpha @aifinpay/merchant@alpha
+npm install @aifinpay/agent @aifinpay/merchant
 ```
 
 `alpha` means the API may change while the SDK surface is still being settled.
