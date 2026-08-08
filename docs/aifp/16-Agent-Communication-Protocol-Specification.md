@@ -742,7 +742,7 @@ Accept: application/json         → HTTP/x402 mode
 # 13. References
 
 - [AIFP-1 — Payment Protocol Specification](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
-- [x402 Flow](./core-concepts/x402-flow.md)
+- [AIFP-1 payment flow](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
 - [Security & Cryptography Specification](./04-Security-and-Cryptography-Specification.md)
 - [AI Agent SDK Specification](./03-AI-Agent-SDK-Specification.md)
 - [RFC 7519] JWT · [RFC 8037] EdDSA in JOSE · [RFC 9110] HTTP Semantics
