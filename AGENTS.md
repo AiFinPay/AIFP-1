@@ -110,8 +110,8 @@ Do not change these without an accepted AIP and a migration plan:
 | Webhook signature | HMAC-SHA256 |
 | Control-plane transport | TLS 1.3 |
 
-`docs.yml` greps for legacy markers (`$0.01`, `$0.04`, `$0.08`, `0.3%`,
-`0.6%`, `0.9%`, `complexity`) and fails the build if any reappear.
+`docs.yml` rejects the retired pricing vocabulary and fails the build if any
+legacy price or percentage marker reappears.
 
 ## Pull Request Workflow
 
