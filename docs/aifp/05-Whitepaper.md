@@ -100,7 +100,7 @@ subscriptions or eaten by providers. That breaks at scale.
 **3.2. Value is metered, not bundled.** As agents fan out across thousands of
 specialized services, flat pricing collapses. The natural unit becomes the **individual
 request**, priced by pricing_tier. Per-call micropayments — fractions of a cent — become
-the dominant transaction shape. Human payment rails physically cannot process a USD 0.00001
+the dominant transaction shape. Human payment rails physically cannot process a USD 0.0005
 charge profitably; interchange alone exceeds the price.
 
 **3.3. Autonomy requires delegation of spend.** An agent acting on your behalf must be
@@ -236,12 +236,12 @@ accepted assets/chains, nonce, expiry, quote URL.
 
 | Pricing Tier | Price (USD) |
 |---|---|
-| standard | USD 0.00001 |
-| standard | USD 0.00001 |
-| complex | USD 0.00006 |
-| premium | USD 0.00010 |
+| standard | USD 0.0005 |
+| complex | USD 0.002 |
+| premium | USD 0.005 |
 
-First **100 requests/month** per agent per merchant are free.
+Each merchant configures and funds its own free quota; an implementation may use
+**100 requests/month** per agent per merchant as an example policy.
 
 **8.4. Receipt token.** A compact **Ed25519 (EdDSA) JWT** (or CBOR-COSE CWT for
 constrained clients). Claims bind issuer, paying agent (`sub`), merchant (`aud`),
@@ -314,7 +314,7 @@ Negotiation Layer, and Open Governance.
    agents earn up to a −30% discount — incentivizing good behavior economically.
 6. **Hybrid fiat/stablecoin settlement.** Regulated settlement rails can bridge on-chain
    speed with off-chain familiarity, so merchants can hold fiat while agents pay in stablecoins.
-7. **Multi-chain abstraction.** One protocol, twelve networks; the agent picks the rail,
+7. **Multi-chain abstraction.** One protocol across supported networks; the agent picks the rail,
    the protocol semantics stay identical.
 
 ---
@@ -395,7 +395,7 @@ contract — settlement is an implementation detail behind a stable protocol sur
 ## 16. Future Roadmap
 
 **2026 — Build & Harden.** Production hardening across supported network tiers; Agent Passport &
-Reputation Network GA; Dynamic Pricing Engine; streaming payments (mSECCO channels);
+Reputation Network GA; merchant-defined products alongside fixed AIFP-1 action tiers; streaming payments (mSECCO channels);
 enterprise hybrid-fiat settlement; deeper x402 interop; SOC 2 / security maturity.
 
 **2026 H2 — E-commerce & Discovery.** Merchant Discovery Registry at scale; an

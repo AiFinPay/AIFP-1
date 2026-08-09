@@ -36,9 +36,9 @@ All examples use:
 
 | Tier | From |
 |---|---:|
-| `standard` | `$0.00001` |
-| `complex` | `$0.00006` |
-| `premium` | `$0.00010` |
+| `standard` | `$0.0005` |
+| `complex` | `$0.002` |
+| `premium` | `$0.005` |
 
 Protocol fee is 1%; merchant settlement is 99% before external costs.
 

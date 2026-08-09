@@ -64,7 +64,7 @@ You are a backend engineer. You have an API or content endpoint that AI agents h
 Integration is one piece of middleware that does four things on every request:
 
 1. **Identify** the agent (`AIFP-Agent-ID` header or fingerprint).
-2. **Count** against a free quota (default 100 requests).
+2. **Count** against a merchant-configured free quota (examples use 100 requests).
 3. When quota is gone, **challenge** with `402 Payment Required` + a machine-readable payment challenge.
 4. When the agent retries with a `Payment-Receipt`, **verify it locally** (Ed25519 signature — no network call) and serve the resource.
 
@@ -97,7 +97,7 @@ The crucial property: **the AiFinPay backend is never in your request hot path.*
 | **Free quota** | First N requests per agent are free (default 100). |
 | **JWKS** | AiFinPay's public keys. Cache them; refresh on unknown `kid`. |
 
-Pricing defaults (override per route): **standard USD 0.00001 · complex USD 0.00006 · premium USD 0.00010**.
+Pricing defaults (override per route): **standard USD 0.0005 · complex USD 0.002 · premium USD 0.005**.
 
 JWKS endpoint: `https://api.aifinpay.io/.well-known/jwks.json` — **cache it** (e.g., 1h), refresh on cache-miss of a `kid`.
 
@@ -122,14 +122,14 @@ JWKS endpoint: `https://api.aifinpay.io/.well-known/jwks.json` — **cache it** 
 
 # 4. Pricing Engine & Free Quota
 
-A merchant maps a request to a **pricing_tier tier**, which maps to a **price**. The simplest engine is a static route table; advanced setups use rules (method, path, query weight, payload size) and may consult the Dynamic Pricing Engine.
+A merchant maps a request to a **pricing_tier tier**, which maps to the tier's fixed price. Route rules may use method, path, query weight, payload size, or compute requirements to select the appropriate tier; they must not alter the fixed price of that tier.
 
 ```ts
 // pricing.ts — framework-agnostic
 export type PricingTier = "standard" | "complex" | "premium";
 
 const PRICE: Record<PricingTier, string> = {
-  standard: "0.00001", complex: "0.00006", premium: "0.00010",
+  standard: "0.0005", complex: "0.002", premium: "0.005",
 };
 
 const ROUTE_TIER: { test: RegExp; tier: PricingTier }[] = [
@@ -398,7 +398,7 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 
 const JWKS = createRemoteJWKSet(new URL("https://api.aifinpay.io/.well-known/jwks.json"));
 const MERCHANT_ID = process.env.AIFP_MERCHANT_ID!;
-const PRICE = { standard: "0.00001", complex: "0.00006", premium: "0.00010" } as const;
+const PRICE = { standard: "0.0005", complex: "0.002", premium: "0.005" } as const;
 
 export async function middleware(req: NextRequest) {
   const resource = req.nextUrl.pathname;
@@ -447,7 +447,7 @@ import redis.asyncio as redis
 MERCHANT_ID = "mrch_9f3a1c2b"
 ISSUER = "https://api.aifinpay.io"
 JWKS_URL = "https://api.aifinpay.io/.well-known/jwks.json"
-PRICE = {"standard": "0.00001", "complex": "0.00006", "premium": "0.00010"}
+PRICE = {"standard": "0.0005", "complex": "0.002", "premium": "0.005"}
 FREE_QUOTA = 100
 r = redis.from_url("redis://localhost")
 
@@ -524,7 +524,7 @@ import redis
 
 MERCHANT_ID = "mrch_9f3a1c2b"; ISSUER = "https://api.aifinpay.io"
 JWKS = httpx.get("https://api.aifinpay.io/.well-known/jwks.json", timeout=5).json()
-PRICE = {"standard": "0.00001"}; FREE_QUOTA = 100
+PRICE = {"standard": "0.0005"}; FREE_QUOTA = 100
 R = redis.from_url("redis://localhost")
 
 class AifpMiddleware:
@@ -577,7 +577,7 @@ use Predis\Client as Redis;
 class Aifp {
     private string $merchant = 'mrch_9f3a1c2b';
     private string $issuer = 'https://api.aifinpay.io';
-    private array $price = ['standard' => '0.00001'];
+    private array $price = ['standard' => '0.0005'];
     private int $quota = 100;
 
     public function handle(Request $req, Closure $next) {
@@ -654,7 +654,7 @@ public class AifpFilter extends OncePerRequestFilter {
       JWTClaimsSet c = p.process(token, null);
       if (!MERCHANT.equals(c.getAudience().get(0)) || !resource.equals(c.getStringClaim("resource")))
         { res.setStatus(422); return; }
-      if (new java.math.BigDecimal(c.getStringClaim("amount")).compareTo(new java.math.BigDecimal("0.00001")) < 0) { res.setStatus(422); return; }
+      if (new java.math.BigDecimal(c.getStringClaim("amount")).compareTo(new java.math.BigDecimal("0.0005")) < 0) { res.setStatus(422); return; }
       String nonce = c.getStringClaim("nonce");
       long ttl = Math.max(1, c.getExpirationTime().getTime()/1000 - System.currentTimeMillis()/1000);
       Boolean consumed = redis.opsForValue().setIfAbsent("n:" + nonce, "1", Duration.ofSeconds(ttl));
@@ -667,7 +667,7 @@ public class AifpFilter extends OncePerRequestFilter {
     res.setStatus(402); res.setHeader("Accept-Payment", "aifp/1.0");
     res.setContentType("application/json");
     res.getWriter().write("{\"error\":{\"code\":\"AIFP-402\"},\"payment_challenge\":{\"version\":\"1.0\",\"scheme\":\"aifp\",\"merchant_id\":\""
-      + MERCHANT + "\",\"resource\":\"" + resource + "\",\"pricing_tier\":\"standard\",\"estimated_amount\":\"0.00001\",\"quote_endpoint\":\""
+      + MERCHANT + "\",\"resource\":\"" + resource + "\",\"pricing_tier\":\"standard\",\"estimated_amount\":\"0.0005\",\"quote_endpoint\":\""
       + ISSUER + "/v1/quote\"}}");
   }
 }
@@ -710,7 +710,7 @@ public class AifpMiddleware {
                 ClockSkew = TimeSpan.FromSeconds(5)
             }, out _);
             var claims = principal.Claims.ToDictionary(c => c.Type, c => c.Value);
-            if (claims["resource"] != resource || decimal.Parse(claims["amount"]) < 0.00001m) { ctx.Response.StatusCode = 422; return; }
+            if (claims["resource"] != resource || decimal.Parse(claims["amount"]) < 0.0005m) { ctx.Response.StatusCode = 422; return; }
             var consumed = await _redis.StringSetAsync($"n:{claims["nonce"]}", "1", TimeSpan.FromSeconds(600), When.NotExists);
             if (!consumed) { ctx.Response.StatusCode = 409; return; }
             await _next(ctx);
@@ -723,7 +723,7 @@ public class AifpMiddleware {
         await ctx.Response.WriteAsJsonAsync(new {
             error = new { code = "AIFP-402" },
             payment_challenge = new { version = "1.0", scheme = "aifp", merchant_id = Merchant,
-                resource, pricing_tier = "standard", estimated_amount = "0.00001",
+                resource, pricing_tier = "standard", estimated_amount = "0.0005",
                 quote_endpoint = $"{Issuer}/v1/quote" } });
     }
 }
@@ -771,7 +771,7 @@ func Middleware(rdb *redis.Client, keyfunc jwt.Keyfunc) func(http.Handler) http.
 			c := tok.Claims.(jwt.MapClaims)
 			if c["resource"] != resource { w.WriteHeader(422); return }
 			amt, _ := decimal.NewFromString(c["amount"].(string))
-			required := decimal.RequireFromString("0.00001")
+			required := decimal.RequireFromString("0.0005")
 			if amt.LessThan(required) { w.WriteHeader(422); return }
 			nonce := c["nonce"].(string)
 			ok, _ := rdb.SetNX(ctx, "n:"+nonce, "1", 600*time.Second).Result()
@@ -789,7 +789,7 @@ func challenge(w http.ResponseWriter, resource string) {
 		"error": map[string]string{"code": "AIFP-402"},
 		"payment_challenge": map[string]any{"version": "1.0", "scheme": "aifp",
 			"merchant_id": merchant, "resource": resource, "pricing_tier": "standard",
-			"estimated_amount": "0.00001", "quote_endpoint": issuer + "/v1/quote",
+			"estimated_amount": "0.0005", "quote_endpoint": issuer + "/v1/quote",
 			"expires_at": time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)},
 	})
 }
@@ -831,7 +831,7 @@ pub async fn aifp(req: Request, next: Next) -> Response {
     v.set_audience(&[MERCHANT]); v.set_issuer(&[ISSUER]); v.leeway = 30;
     match decode::<Claims>(token, &key, &v) {
         Ok(data) if data.claims.resource == resource
-            && data.claims.amount.parse::<f64>().unwrap_or(0.0) >= 0.00001 => next.run(req).await, // use rust_decimal for exact micropayment math
+            && data.claims.amount.parse::<f64>().unwrap_or(0.0) >= 0.0005 => next.run(req).await, // use rust_decimal for exact micropayment math
         Ok(_) => StatusCode::UNPROCESSABLE_ENTITY.into_response(),
         Err(_) => challenge(&resource),
     }
@@ -841,7 +841,7 @@ fn challenge(resource: &str) -> Response {
     (StatusCode::PAYMENT_REQUIRED, [("Accept-Payment", "aifp/1.0")],
      Json(json!({ "error": {"code":"AIFP-402"},
         "payment_challenge": {"version":"1.0","scheme":"aifp","merchant_id":MERCHANT,
-            "resource":resource,"pricing_tier":"standard","estimated_amount":"0.00001",
+            "resource":resource,"pricing_tier":"standard","estimated_amount":"0.0005",
             "quote_endpoint": format!("{ISSUER}/v1/quote")} }))).into_response()
 }
 ```
@@ -869,7 +869,7 @@ export default {
     const challenge = () => new Response(JSON.stringify({
       error: { code: "AIFP-402" },
       payment_challenge: { version: "1.0", scheme: "aifp", merchant_id: MERCHANT,
-        resource: url.pathname, pricing_tier: "standard", estimated_amount: "0.00001",
+        resource: url.pathname, pricing_tier: "standard", estimated_amount: "0.0005",
         quote_endpoint: "https://api.aifinpay.io/v1/quote", nonce: crypto.randomUUID(),
         expires_at: new Date(Date.now() + 300000).toISOString() } }),
       { status: 402, headers: { "Accept-Payment": "aifp/1.0", "Content-Type": "application/json" } });
@@ -928,7 +928,7 @@ function challenge(r) {
   r.headersOut["Content-Type"] = "application/json";
   r.return(402, JSON.stringify({ error: { code: "AIFP-402" },
     payment_challenge: { version: "1.0", scheme: "aifp", merchant_id: MERCHANT,
-      resource: r.uri, pricing_tier: "standard", estimated_amount: "0.00001",
+      resource: r.uri, pricing_tier: "standard", estimated_amount: "0.0005",
       quote_endpoint: "https://api.aifinpay.io/v1/quote" } }));
 }
 export default { verify, challenge };
@@ -974,7 +974,7 @@ function challenge(r)
   r.content_type = "application/json"
   r:write(cjson.encode({ error = { code = "AIFP-402" },
     payment_challenge = { version = "1.0", scheme = "aifp", merchant_id = MERCHANT,
-      resource = r.uri, pricing_tier = "standard", estimated_amount = "0.00001",
+      resource = r.uri, pricing_tier = "standard", estimated_amount = "0.0005",
       quote_endpoint = "https://api.aifinpay.io/v1/quote" } }))
   return 402
 end
@@ -1008,7 +1008,7 @@ add_action('init', function () {
         echo json_encode(['error' => ['code' => 'AIFP-402'],
             'payment_challenge' => ['version' => '1.0', 'scheme' => 'aifp',
                 'merchant_id' => $merchant, 'resource' => $resource, 'pricing_tier' => 'standard',
-                'estimated_amount' => '0.00001', 'quote_endpoint' => "$issuer/v1/quote",
+                'estimated_amount' => '0.0005', 'quote_endpoint' => "$issuer/v1/quote",
                 'nonce' => bin2hex(random_bytes(16)),
                 'expires_at' => gmdate('Y-m-d\TH:i:s\Z', time() + 300)]]);
         exit;
@@ -1019,7 +1019,7 @@ add_action('init', function () {
         $p = (array) JWT::decode($token, JWK::parseKeySet($jwks));
     } catch (\Throwable $e) { $challenge(); }
     if (($p['aud'] ?? '') !== $merchant || ($p['resource'] ?? '') !== $resource
-        || bccomp($p['amount'] ?? '0', '0.00001', 8) < 0) { status_header(422); exit; }
+        || bccomp($p['amount'] ?? '0', '0.0005', 8) < 0) { status_header(422); exit; }
     $nkey = "aifp_n_" . $p['nonce'];
     if (get_transient($nkey)) { status_header(409); exit; }
     set_transient($nkey, 1, max(1, $p['exp'] - time()));

@@ -54,7 +54,7 @@ Example sandbox response:
   "quote_id": "qt_sbx_01",
   "receipt_id": "rcpt_sbx_01",
   "receipt_status": "settled",
-  "charged_amount": "0.00001",
+  "charged_amount": "0.0005",
   "protocol_fee": "0.0000001",
   "merchant_settlement": "0.0000099"
 }

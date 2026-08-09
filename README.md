@@ -76,11 +76,11 @@ and machine-to-machine commerce. The intent is compatibility and specialization,
 
 ## Pricing For Agent Actions
 
-| Tier | Starts From | Intended Workload |
+| Tier | Fixed Price Per Action | Intended Workload |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
 AiFinPay charges a **1% protocol fee** on successful transactions. The remaining **99% settles to the merchant**, excluding any applicable payment-network, gas, processor, or settlement costs.
 
@@ -170,7 +170,7 @@ sequenceDiagram
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.00001",
+    "estimated_amount": "0.0005",
     "currency": "USD",
     "accepted_assets": ["USDC", "USDT", "PYUSD"],
     "accepted_chains": ["polygon", "base", "solana"],

@@ -101,9 +101,9 @@ Do not change these without an accepted AIP and a migration plan:
 |---|---|
 | Protocol fee rate | `0.01` (1%) |
 | Merchant settlement rate | `0.99` (99%, before network/settlement costs) |
-| Tier `standard` | from `$0.00001` |
-| Tier `complex` | from `$0.00006` |
-| Tier `premium` | from `$0.00010` |
+| Tier `standard` | `$0.0005` per action |
+| Tier `complex` | `$0.002` per action |
+| Tier `premium` | `$0.005` per action |
 | Receipt default TTL | 600 seconds |
 | Idempotency dedupe window | 24 hours |
 | Receipt signature | Ed25519 |

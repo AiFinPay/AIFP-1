@@ -16,7 +16,8 @@ See [AIP-0001](aip-0001.md) for the full proposal process.
 | [12](aip-0012.md) | Agent Passport & Reputation Network | Standards Track | Core | Final |
 | [19](aip-0019.md) | AIFP-403-BUDGET-EXCEEDED Error | Standards Track | Interface | Final |
 | [23](aip-0023.md) | Streaming Payments via mSECCO Channels | Standards Track | Core | Accepted |
-| [31](aip-0031.md) | Dynamic Pricing Reputation Discount Cap | Informational | N/A | Final |
+| [31](aip-0031.md) | Dynamic Pricing Reputation Discount Cap | Informational | N/A | Superseded by AIP-32 |
+| [32](aip-0032.md) | Fixed AIFP-1 Action Pricing Schedule | Standards Track | Economics | Final |
 
 ## AIP Types
 

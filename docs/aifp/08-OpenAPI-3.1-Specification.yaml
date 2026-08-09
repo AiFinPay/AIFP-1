@@ -23,11 +23,11 @@ info:
     ## Pricing (canonical)
     | Pricing Tier | Price (USD) |
     |---|---|
-    | standard | USD 0.00001 |
-    | complex | USD 0.00006 |
-    | premium | USD 0.00010 |
+    | standard | USD 0.0005 |
+    | complex | USD 0.002 |
+    | premium | USD 0.005 |
 
-    Free quota: **100 requests** per agent per merchant per month.
+    Free quota: merchant-funded and configurable; examples may use **100 requests** per agent per merchant per month.
     Protocol fee: volume-tiered **1% / 1% / 1%** (cap ~1%).
   termsOfService: https://aifinpay.io/terms
   contact:
@@ -106,7 +106,7 @@ paths:
                     quote_id: qt_8d21f0
                     merchant_id: mrch_9f3a1c2b
                     resource: /api/data
-                    amount: "0.00001"
+                    amount: "0.0005"
                     currency: USD
                     accepted_assets: [USDC, USDT, PYUSD]
                     accepted_chains: [polygon, base, solana]
@@ -157,7 +157,7 @@ paths:
                     receipt: <JWT EdDSA receipt token>
                     status: settled
                     tx_ref: "0xabc123..."
-                    amount: "0.00001"
+                    amount: "0.0005"
                     fee: "0.0000001"
                     expires_at: "2026-06-28T12:44:56Z"
         '202':
@@ -541,7 +541,7 @@ components:
       type: string
       enum: [standard, complex, premium]
       description: |
-        Pricing tier. standard=USD 0.00001, complex=USD 0.00006, premium=USD 0.00010.
+        Pricing tier. standard=USD 0.0005, complex=USD 0.002, premium=USD 0.005.
     Asset:
       type: string
       enum: [USDC, USDT, PYUSD]
@@ -568,7 +568,7 @@ components:
         quote_id: { type: string, pattern: '^qt_[A-Za-z0-9]+$' }
         merchant_id: { type: string }
         resource: { type: string }
-        amount: { type: string, description: "Decimal string in the quote currency.", example: "0.00001" }
+        amount: { type: string, description: "Decimal string in the quote currency.", example: "0.0005" }
         currency: { type: string, example: USD }
         accepted_assets:
           type: array
@@ -599,7 +599,7 @@ components:
         receipt: { type: string, description: Compact Ed25519 JWT receipt token. }
         status: { type: string, enum: [settled, settling, expired, revoked] }
         tx_ref: { type: string, description: On-chain tx hash or fiat reference. }
-        amount: { type: string, example: "0.00001" }
+        amount: { type: string, example: "0.0005" }
         fee: { type: string, example: "0.0000001" }
         expires_at: { type: string, format: date-time }
     SettlingReceipt:

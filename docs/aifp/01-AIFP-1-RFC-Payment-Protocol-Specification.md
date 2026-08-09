@@ -41,7 +41,7 @@ This document is licensed under **CC BY 4.0**. Reference implementations referen
 
 ## Abstract
 
-The web is entering an **AI-first** phase in which the primary consumer of content and APIs is no longer a human browser but an autonomous software agent. The two monetization models that built the human web — advertising and subscriptions — both fail for machine consumers: agents do not view ads, cannot complete human registration or KYC, and cannot subscribe to the thousands of resources a single task touches. Traditional payment rails (cards, ACH, SEPA) carry a minimum economically viable transaction of roughly **$0.30–$0.50** due to fixed fees, while a typical API request is worth **USD 0.00001–USD 0.00010** — a gap of three to four orders of magnitude.
+The web is entering an **AI-first** phase in which the primary consumer of content and APIs is no longer a human browser but an autonomous software agent. The two monetization models that built the human web — advertising and subscriptions — both fail for machine consumers: agents do not view ads, cannot complete human registration or KYC, and cannot subscribe to the thousands of resources a single task touches. Traditional payment rails (cards, ACH, SEPA) carry a minimum economically viable transaction of roughly **$0.30–$0.50** due to fixed fees, while a typical API request is worth **USD 0.0005–USD 0.005** — a gap of two to three orders of magnitude.
 
 **AIFP-1** inverts the prevailing "block the bots" posture into "monetize the machines." It defines a complete, HTTP-native payment handshake built on the long-reserved **`402 Payment Required`** status code: a merchant returns a machine-readable **Payment Challenge**, the agent pays through AiFinPay, receives a cryptographically signed **Receipt Token**, replays its original request with the receipt attached, and the merchant grants access after **stateless local signature verification** — no backend round-trip, no human in the loop.
 
@@ -118,7 +118,7 @@ Lacking a payment mechanism, providers default to **defense**: blocking via `rob
 AIFP **monetizes** machine traffic instead of blocking it. Baseline scenario:
 
 1. The merchant installs the AiFinPay middleware (a single line).
-2. The merchant configures pricing: the first **100 requests free** (configurable), then **USD 0.00001–USD 0.00010** per request by pricing_tier.
+2. The merchant configures a merchant-funded free quota and the protected actions; examples may use **100 free requests**, but the protocol defines no global quota.
 3. On quota exhaustion, the server returns **`402 Payment Required`** with a machine-readable Payment Challenge.
 4. The agent **automatically** pays through AiFinPay.
 5. The merchant receives funds (on-chain or fiat/stablecoin settlement).
@@ -262,7 +262,7 @@ Content-Type: application/json
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.00001",
+    "estimated_amount": "0.0005",
     "currency": "USD",
     "accepted_assets": ["USDC", "USDT", "PYUSD"],
     "accepted_chains": ["polygon", "base", "solana", "unichain"],
@@ -293,11 +293,11 @@ Content-Type: application/json
 
 | Pricing Tier | Price (USD) | Typical use |
 |---|---|---|
-| `standard` | **USD 0.00001** | Cheap reads, key-value lookups, single record |
-| `complex` | **USD 0.00006** | Aggregations, search, multi-record |
-| `premium` | **USD 0.00010** | Inference, heavy compute, premium data |
+| `standard` | **USD 0.0005** | Cheap reads, key-value lookups, single record |
+| `complex` | **USD 0.002** | Aggregations, search, multi-record |
+| `premium` | **USD 0.005** | Inference, heavy compute, premium data |
 
-Free quota default: **100 requests** per agent before charging begins. Both pricing and quota are merchant-configurable; the values above are the protocol defaults and MUST be used when unset.
+Free quota: merchant-funded and configurable. The protocol defines no global default; examples may use **100 requests** per agent before charging begins. The fixed prices above MUST be used for paid tier actions.
 
 ---
 
@@ -320,7 +320,7 @@ A Receipt Token is a **JWS-signed JWT** (compact serialization) using **EdDSA / 
   "aud": "mrch_9f3a1c2b",
   "resource": "/api/data",
   "pricing_tier": "standard",
-  "amount": "0.00001",
+  "amount": "0.0005",
   "currency": "USD",
   "asset": "USDC",
   "chain": "polygon",
@@ -710,11 +710,11 @@ A `402` MUST NOT be a dead end. When an agent does **not** advertise AIFP suppor
              "message": "This resource is monetized via AiFinPay. Your agent does not yet support AIFP." },
   "payment_challenge": { "version": "1.0", "scheme": "aifp", "quote_endpoint": "https://api.aifinpay.io/v1/quote",
     "merchant_id": "mrch_9f3a1c2b", "resource": "/api/data", "pricing_tier": "standard",
-    "estimated_amount": "0.00001", "currency": "USD", "nonce": "b7e2...c91a", "expires_at": "2026-06-28T12:34:56Z" },
+    "estimated_amount": "0.0005", "currency": "USD", "nonce": "b7e2...c91a", "expires_at": "2026-06-28T12:34:56Z" },
   "agent_supported": false,
   "onboarding": {
     "what_is_aifinpay": "AiFinPay is an application-layer payment protocol on top of HTTP that lets AI agents automatically pay for access to content and APIs without human involvement.",
-    "why_payment_required": "The free quota (100 requests) is exhausted. Further access to this resource is paid.",
+    "why_payment_required": "The merchant-configured free quota is exhausted. Further access to this resource is paid.",
     "actions": {
       "connect_wallet": "https://app.aifinpay.io/wallet/connect",
       "create_wallet":  "https://app.aifinpay.io/wallet/create",
@@ -746,7 +746,7 @@ When the agent **does** advertise support (`Accept-Payment: aifp/1.0`), the merc
   "quote_id": "qt_8d21f0",
   "merchant_id": "mrch_9f3a1c2b",
   "resource": "/api/data",
-  "amount": "0.00001",
+  "amount": "0.0005",
   "currency": "USD",
   "accepted_assets": ["USDC", "USDT", "PYUSD"],
   "accepted_chains": ["polygon", "base", "solana"],
@@ -770,8 +770,8 @@ When the agent **does** advertise support (`Accept-Payment: aifp/1.0`), the merc
   "receipt": "<JWT EdDSA receipt token>",
   "status": "settled",
   "tx_ref": "0xabc123...",
-  "amount": "0.00001",
-  "fee": "0.0000001",
+  "amount": "0.0005",
+  "fee": "0.000005",
   "expires_at": "2026-06-28T12:44:56Z"
 }
 ```
@@ -1192,7 +1192,7 @@ An implementation claiming **AIFP-1 conformance** MUST satisfy all of the follow
 **R4** — A merchant MUST reject a reused nonce with `409` and MUST keep working (degraded) when the Control Plane is unavailable.
 **R5** — Receipts MUST be EdDSA-signed JWTs (or COSE-CWT equivalents) carrying the claims of Section 7.3, with default TTL 600 s.
 **R6** — `/pay` MUST honor `Idempotency-Key` for 24 h and MUST NOT double-charge.
-**R7** — Default pricing (Standard from USD 0.00001 / Complex from USD 0.00006 / Premium from USD 0.00010) and free quota (100) MUST be used when unconfigured.
+**R7** — Fixed action pricing (Standard USD 0.0005 / Complex USD 0.002 / Premium USD 0.005) and the merchant-configured free quota MUST be used consistently in challenges, quotes, receipts, and analytics.
 **R8** — Agents MUST implement exponential backoff with jitter and MUST NOT retry a `402` without paying.
 **R9** — TLS 1.3 MUST be used for all control-plane traffic; webhooks MUST be HMAC-signed and timestamp-verified.
 **R10** — A bare `402` (no challenge) is non-conformant; absent agent support, the onboarding `402` (Section 15) MUST be returned.
@@ -1205,7 +1205,7 @@ AIFP-1 is forward-compatible with the following extensions, specified in compani
 
 - **Agent Passport** — portable signed agent identity (`agt_*`/`pp_*`), wallet binding, delegated spending.
 - **Merchant Discovery Registry** — a registry and `.well-known` self-description so agents can discover priced resources (includes the `GET /.well-known/aifp` endpoint referenced in Section 22.3).
-- **Dynamic Pricing Engine** — rule-based pricing clamped to `[min, max]`, with reputation discounts.
+- **Merchant-defined products** — subscriptions, premium content, API packages, and enterprise access remain separate from the fixed AIFP-1 action tiers.
 - **Streaming Payments** — payment channels for continuous/metered access.
 - **Agent Reputation Network** — reputation ∈ [0,1000] and risk ∈ [0,100] influencing pricing and trust.
 - **CWT/COSE receipt encoding** — compact binary receipt variant for constrained clients (Section 16.4); capability negotiation and COSE key distribution to be specified.

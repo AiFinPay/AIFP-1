@@ -25,11 +25,11 @@ The official documentation ecosystem for the **AiFinPay Paywall Protocol (AIFP)*
 
 ## Pricing Summary
 
-| Agent Action Tier | Starts From | Typical Action |
+| Agent Action Tier | Fixed Price Per Action | Typical Action |
 |---|---:|---|
-| Standard | `$0.00001` | Simple read, single record, lightweight API request |
-| Complex | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| Premium | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+| Standard | `$0.0005` | Simple read, single record, lightweight API request |
+| Complex | `$0.002` | Search, aggregation, multi-source queries, higher compute |
+| Premium | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
 AiFinPay charges a **1% protocol fee** on every successful transaction. The remaining **99%** is settled to the merchant, excluding any applicable payment network or settlement costs.
 

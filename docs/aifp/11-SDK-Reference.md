@@ -26,11 +26,11 @@ supplied.
 
 ## Pricing model
 
-| Tier | Starts From | Typical Action |
+| Tier | Fixed Price Per Action | Typical Action |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
 AiFinPay applies a **1% protocol fee** to every successful transaction. The remaining **99%** is settled to the merchant, excluding applicable payment network or settlement costs.
 
@@ -245,7 +245,7 @@ var (valid, claims) = await verifier.VerifyAsync(jwt, resource: "/api/data");
 
 ## Cross-language guarantees
 
-1. **Identical pricing & enums** — action pricing tiers (Standard from $0.00001, Complex from $0.00006, Premium from $0.00010), assets (USDC/USDT/PYUSD), and the 12-chain set are the same everywhere.
+1. **Identical pricing & enums** — fixed action pricing tiers (Standard $0.0005, Complex $0.002, Premium $0.005), assets (USDC/USDT/PYUSD), and the supported network set are the same everywhere.
 2. **Protocol fee** — every SDK surfaces the 1% AiFinPay protocol fee and merchant net settlement amount where available.
 3. **Stateless verify** — every `Verifier` performs the AIFP-1 §7.4 10-step check with no network call; only JWKS is cached.
 4. **Idempotency** — `pay()` auto-attaches an `Idempotency-Key` (24h window) unless overridden.

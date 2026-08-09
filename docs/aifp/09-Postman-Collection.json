@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "AiFinPay Paywall Protocol (AIFP) v1",
-    "description": "Official Postman collection for the AiFinPay Paywall Protocol (AIFP-1). Covers Quote, Pay, Receipt, Merchant, Wallet, Passport, and Verification APIs. Governed by AIFP-1 (Doc 01) and aligned to the OpenAPI 3.1 spec (Doc 08). Pricing tiers: Standard from $0.00001, Complex from $0.00006, Premium from $0.00010. AiFinPay Protocol Fee: 1% of every successful transaction; 99% settles to the merchant excluding applicable payment-network or settlement costs. Receipts are Ed25519 JWTs (TTL 600s).",
+    "description": "Official Postman collection for the AiFinPay Paywall Protocol (AIFP-1). Covers Quote, Pay, Receipt, Merchant, Wallet, Passport, and Verification APIs. Governed by AIFP-1 (Doc 01) and aligned to the OpenAPI 3.1 spec (Doc 08). Fixed action pricing: Standard $0.0005, Complex $0.002, Premium $0.005. AiFinPay Protocol Fee: 1% of every successful transaction; 99% settles to the merchant excluding applicable payment-network or settlement costs. Receipts are Ed25519 JWTs (TTL 600s).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "aifp-0001-collection-v1",
     "version": "1.0.0"

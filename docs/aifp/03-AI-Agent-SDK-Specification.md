@@ -229,7 +229,7 @@ budget: {
 - `requireApprovalOver` fires the `onBeforePay` hook so a human or a higher-level policy can approve/deny.
 - Counters reset on rolling windows (daily/monthly) and are persisted by the SDK's storage adapter.
 
-> **Quote↔challenge binding.** When the SDK receives a Payment Challenge (`estimated_amount`), it MUST verify that the resulting Quote response `amount` does not exceed `estimated_amount × (1 + tolerance)` where `tolerance = 0.0` (no tolerance by default; merchants SHOULD advertise tolerance, if any, in `payment_challenge.estimated_max_factor`). A merchant that advertises an `estimated_amount` of `0.00001` and returns a Quote of `0.00010` for the same `(resource, pricing_tier)` is in violation — the SDK MUST raise `BudgetExceeded` and refuse to pay. Quote responses that exceed the challenge estimate without an advertised tolerance are treated as bait-and-switch.
+> **Quote↔challenge binding.** When the SDK receives a Payment Challenge (`estimated_amount`), it MUST verify that the resulting Quote response `amount` does not exceed `estimated_amount × (1 + tolerance)` where `tolerance = 0.0` (no tolerance by default; merchants SHOULD advertise tolerance, if any, in `payment_challenge.estimated_max_factor`). A merchant that advertises an `estimated_amount` of `0.0005` and returns a Quote of `0.005` for the same `(resource, pricing_tier)` is in violation — the SDK MUST raise `BudgetExceeded` and refuse to pay. Quote responses that exceed the challenge estimate without an advertised tolerance are treated as bait-and-switch.
 
 ```mermaid
 flowchart LR
@@ -292,7 +292,7 @@ The **Agent Passport** is an optional, portable, Ed25519-signed identity credent
 
 - **Wallet binding:** the Passport cryptographically binds approved wallets, optionally via an on-chain **mSECCO escrow** contract (Full Core networks).
 - **Delegated spending:** an owner (org/parent agent) can issue scoped, time-bounded delegations so sub-agents pay within limits.
-- **Reputation / trust:** `reputation ∈ [0,1000]` (start 500), `risk ∈ [0,100]`, trust levels `untrusted | basic | verified | enterprise`. Merchants MAY use these for dynamic pricing or access. (Reputation network detail is governed by AIFP-1 §24 future extensions; security in Doc 4.)
+- **Reputation / trust:** `reputation ∈ [0,1000]` (start 500), `risk ∈ [0,100]`, trust levels `untrusted | basic | verified | enterprise`. Merchants MAY use these for access policy, but not to change the fixed AIFP-1 tier prices. (Reputation network detail is governed by AIFP-1 §24 future extensions; security in Doc 4.)
 
 The Passport is OPTIONAL for anonymous AIFP-1 payment — an agent MAY pay with only a funded wallet. Passport is REQUIRED when the SDK uses identity-bound budgets, reputation, durable free quota, or delegated sub-agent authority.
 

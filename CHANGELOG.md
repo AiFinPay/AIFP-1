@@ -17,6 +17,8 @@ This project follows semantic versioning for code artifacts and explicit protoco
 ### Changed
 
 - Repositioned the repository as the official AiFinPay Paywall Protocol home.
+- Ratified AIP-32 and aligned current documentation, schemas, examples, and API artifacts to fixed per-action pricing: Standard `$0.0005`, Complex `$0.002`, Premium `$0.005`.
+- Added an external `aifp-1-monetization` Agent Skill for merchant HTTP 402 implementations.
 
 ### Security & Architecture Audit (2026-07-24)
 

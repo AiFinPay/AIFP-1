@@ -254,7 +254,7 @@ def verify_receipt(token, merchant_id, resource, required_amount, jwks, nonce_se
 
 The verification is **pure** except for the nonce store touch. It MUST NOT contact AiFinPay. A failure MUST map to the precise status code so the agent recovers correctly (AIFP-1 §17).
 
-> **Amount comparison MUST use decimal or integer arithmetic, never floating point.** Micropayment amounts have up to 8 decimal places (e.g., `0.00001`); IEEE-754 `float`/`double` cannot represent many such values exactly and a rounding error near a tier boundary can flip the comparison — accepting a receipt for `0.0000099999...` or rejecting a legitimate `0.00001`. Use a decimal type (`decimal.Decimal`, `BigDecimal`, `decimal.Decimal`), or convert to integer minor units (e.g., micro-USD × 10⁸) before comparing.
+> **Amount comparison MUST use decimal or integer arithmetic, never floating point.** Micropayment amounts have up to 8 decimal places (e.g., `0.0005`); IEEE-754 `float`/`double` cannot represent many such values exactly and a rounding error near a tier boundary can flip the comparison — accepting a receipt for `0.0004999999...` or rejecting a legitimate `0.0005`. Use a decimal type (`decimal.Decimal`, `BigDecimal`, `decimal.Decimal`), or convert to integer minor units (e.g., micro-USD × 10⁸) before comparing.
 
 ## 8.3. CWT/COSE variant
 
@@ -427,7 +427,7 @@ Because verification is local and stateless, a DDoS against merchants cannot be 
 # 17. Fraud Detection & Reputation
 
 - **Signals:** velocity (pays/sec), failed-verify ratio, nonce-replay attempts, chargeback rate, anomalous chain/asset switching, budget-breach frequency.
-- **Agent Reputation Network:** `reputation ∈ [0,1000]` (start 500), `risk ∈ [0,100]`, trust levels `untrusted | basic | verified | enterprise`. Reputation rises with successful, dispute-free settlement and falls with fraud/abuse. Merchants MAY require a minimum trust level or apply reputation-based pricing (max −30% discount).
+- **Agent Reputation Network:** `reputation ∈ [0,1000]` (start 500), `risk ∈ [0,100]`, trust levels `untrusted | basic | verified | enterprise`. Reputation rises with successful, dispute-free settlement and falls with fraud/abuse. Merchants MAY require a minimum trust level for access, but reputation does not change the fixed AIFP-1 tier prices.
 - **Actions:** step-up (require Passport / higher confirmations), throttle, or blocklist (`403`). All automated decisions are logged and appealable via governance.
 
 ---

@@ -4,11 +4,11 @@ AiFinPay prices agent work as small, explicit, resource-scoped actions. The merc
 
 ## Action Pricing
 
-| Tier | Starts From | Workload | Examples |
+| Tier | Fixed Price Per Action | Workload | Examples |
 |---|---:|---|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request | Profile lookup, status read, single-row retrieval |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute | Search API, analytics aggregation, multi-source enrichment |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data | LLM inference, premium data feed, GPU analytics job |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request | Profile lookup, status read, single-row retrieval |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute | Search API, analytics aggregation, multi-source enrichment |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data | LLM inference, premium data feed, GPU analytics job |
 
 ## Fee Rule
 

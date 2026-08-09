@@ -156,7 +156,7 @@ Each card links source repo (Doc 15), changelog, and the SDK Reference (Doc 11) 
 - *Does AIFP have a token?* No — tokenless by design (Whitepaper §14).
 - *Do I call AiFinPay to verify a receipt?* No — verification is local/stateless (§7.4).
 - *Which chains/assets?* 12 networks; USDC/USDT/PYUSD (Doc 01 App. B).
-- *How do micropayments work?* Agent actions are priced by tier: Standard from $0.00001, Complex from $0.00006, Premium from $0.00010.
+- *How do micropayments work?* Agent actions use fixed tier prices: Standard $0.0005, Complex $0.002, Premium $0.005.
 - *What is the protocol fee?* AiFinPay charges 1% on successful transactions; 99% settles to the merchant, excluding applicable network or settlement costs.
 - *Is it x402-compatible?* Yes. Migration incentives, if any, are published through the official developer portal.
 

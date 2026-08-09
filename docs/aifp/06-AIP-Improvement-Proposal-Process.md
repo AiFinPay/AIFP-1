@@ -153,8 +153,8 @@ This document. Defines the process by which all other AIPs are created and ratif
 
 ### AIP-2 — Core Payment Protocol *(Standards Track · Core, Final)*
 **Abstract.** Ratifies AIFP-1 (Doc 01) as the normative protocol: HTTP-402 challenge,
-quote/pay/receipt loop, Ed25519 stateless receipts (TTL 600s), agent action pricing tiers
-(Standard from $0.00001 / Complex from $0.00006 / Premium from $0.00010), 1% AiFinPay
+quote/pay/receipt loop, Ed25519 stateless receipts (TTL 600s), the original agent
+action pricing schedule later amended by AIP-32, 1% AiFinPay
 protocol fee, merchant settlement of the remaining 99% excluding applicable network or
 settlement costs, idempotency (24h), and error registry. **Backward Compatibility:**
 baseline; nothing to break.
@@ -182,10 +182,15 @@ bound to the Agent Passport. **Status:** Accepted; awaiting reference implementa
 conformance vectors before Final. **Backward Compatibility:** MINOR — opt-in capability
 gated by Protocol Negotiation.
 
-### AIP-31 — Dynamic Pricing Reputation Discount Cap *(Informational)*
+### AIP-31 — Dynamic Pricing Reputation Discount Cap *(Informational, Superseded)*
 **Abstract.** Recommends clamping dynamic prices to `[min,max]` and capping
 reputation-based discounts at **−30%** to prevent gaming. Non-binding guidance for
-merchants implementing the Dynamic Pricing Engine.
+merchants implementing the Dynamic Pricing Engine. Superseded by AIP-32.
+
+### AIP-32 — Fixed AIFP-1 Action Pricing Schedule *(Standards Track · Economics, Final)*
+**Abstract.** Ratifies fixed per-action prices of Standard $0.0005, Complex $0.002,
+and Premium $0.005. Keeps subscriptions, premium content, API packages, and enterprise
+access separate from AIFP-1 action revenue.
 
 ---
 

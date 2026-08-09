@@ -14,11 +14,11 @@ Schemas define machine-readable validation for AIFP protocol objects.
 
 Every price-bearing schema should model action pricing as a tiered micropayment contract.
 
-| Tier | Minimum amount | Intended use |
+| Tier | Fixed price per action | Intended use |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple reads, single-record retrieval, lightweight API requests. |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, and higher-compute requests. |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, and premium data. |
+| `standard` | `$0.0005` | Simple reads, single-record retrieval, lightweight API requests. |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, and higher-compute requests. |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, and premium data. |
 
 Successful transactions apply the AiFinPay Protocol Fee of `1%`; the remaining `99%` settles to the merchant, excluding applicable payment-network or settlement costs.
 
