@@ -1,6 +1,7 @@
 # AGENTS.md
 
 Primary instructions are located at:
+
 - node_modules/@daochild/agents-config/AGENTS.md
 
 Follow all instructions from that file unless overridden below.
@@ -35,7 +36,7 @@ hand-edit them.
 | `docs/aifp/08-OpenAPI-3.1-Specification.yaml` | API contract, must match protocol docs. |
 | `docs/aifp/10-JSON-Schemas.md` | Object shape contract, must match OpenAPI and protocol docs. |
 | `docs/` | Human-readable portal, navigation, quick starts, role-based guides. |
-| `sdk/typescript|python|go/` | SDK design surfaces. Reference implementations land under `sdk/`. |
+| `sdk/typescript\|python\|go/` | SDK design surfaces. Reference implementations land under `sdk/`. |
 | `examples/` | Runnable merchant, agent, wallet, webhook, receipt, and curl flows. |
 | `sandbox/` | Local challenge, quote, pay, receipt, and webhook playground. |
 | `schemas/` | Schema entry points. |
@@ -55,7 +56,7 @@ If you are not sure where a change belongs:
 | API shape, endpoints, request/response schemas | `docs/aifp/08-OpenAPI-3.1-Specification.yaml` |
 | Object shape contract | `docs/aifp/10-JSON-Schemas.md` |
 | Portal copy, navigation, role guides | `docs/*.md` |
-| SDK reference | `sdk/typescript|python|go/...` and `docs/aifp/11-SDK-Reference.md` |
+| SDK reference | `sdk/typescript\|python\|go/...` and `docs/aifp/11-SDK-Reference.md` |
 | Runnable example | `examples/...` |
 | Conformance check | `tests/...` |
 | Automation | `scripts/...` and `.github/workflows/...` |
