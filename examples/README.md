@@ -32,13 +32,13 @@ sequenceDiagram
 
 ## Pricing Contract
 
-All examples use:
+All current AIFP-1 examples use:
 
 | Tier | From |
 |---|---:|
-| `standard` | `$0.00001` |
-| `complex` | `$0.00006` |
-| `premium` | `$0.00010` |
+| `standard` | `$0.0005` |
+| `complex` | `$0.002` |
+| `premium` | `$0.005` |
 
-Protocol fee is 1%; merchant settlement is 99% before external costs.
+The AIFP-1 merchant-monetization profile charges exactly 1% (`100` bps), creator/referral fee is 0 bps, and merchant settlement is 99% before external network or settlement costs. AIFP-2/x402 uses a separate `0/0` profile.
 
