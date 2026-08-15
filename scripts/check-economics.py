@@ -54,9 +54,9 @@ REQUIRED_SNIPPETS = {
 }
 
 FORBIDDEN_PATTERNS = [
-    re.compile(r'["\']?merchant_amount["\']?\s*[:=]\s*["\']0\.0005["\']', re.IGNORECASE),
-    re.compile(r'\bmerchantAmount\s*[:=]\s*["\']0\.0005["\']'),
-    re.compile(r'reference merchant amount\s+(?:is|=)\s+\$?0\.0005', re.IGNORECASE),
+    re.compile(r"[\"']?merchant_amount[\"']?\s*[:=]\s*[\"']0\.0005[\"']", re.IGNORECASE),
+    re.compile(r"\bmerchantAmount\s*[:=]\s*[\"']0\.0005[\"']"),
+    re.compile(r"reference merchant amount\s+(?:is|=)\s+\$?0\.0005", re.IGNORECASE),
 ]
 
 SCAN_SUFFIXES = {".md", ".json", ".yaml", ".yml", ".ts", ".js", ".py", ".go"}
