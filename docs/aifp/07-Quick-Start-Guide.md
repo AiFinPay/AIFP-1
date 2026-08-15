@@ -1,237 +1,165 @@
-# AIFP Quick Start Guide
+# AIFP-1 Quick Start Guide
 
-**Document:** AIFP-DOC-07 · **Reading time:** ~5 minutes · **Governed by:** AIFP-1 (Doc 01)
+**Document:** AIFP-DOC-07 · **Status:** Draft implementation guidance · **Governed by:** AIFP-1 (Doc 01)
 
-Get paid (merchant) or pay autonomously (agent) with the **AiFinPay Paywall
-Protocol (AIFP)** in minutes. AIFP turns HTTP `402 Payment Required` into a real,
-machine-payable response so AI agents can buy API calls, data, and compute without
-a human in the loop.
+AIFP-1 is the merchant AI-traffic monetization profile built around HTTP `402 Payment Required`. The intended loop is:
 
-> **The 4-step loop**
-> `402 challenge` → `POST /v1/quote` → `POST /v1/pay` (get receipt) → retry with `Payment-Receipt`.
+`request → AIFP-1 402 challenge → binding quote → payer settlement → settlement verification → receipt → retry`
+
+This repository is a protocol/specification project. Examples below describe the required behavior; they do not by themselves prove that every SDK, network, asset, or hosted endpoint is production-live.
 
 ---
 
-## 0. Prerequisites (30 seconds)
+## 1. Current Economics
 
-| You need | Where |
-|---|---|
-| Sandbox API key (`sk_test_...`) | https://dashboard.aifinpay.io → API Keys |
-| Base URL | Sandbox `https://sandbox.api.aifinpay.io` · Prod `https://api.aifinpay.io` |
-| (Agents) a funded test wallet | created in Agent Quick Start below |
-
-Pricing is action-tier based:
-
-| Tier | Starts From | Typical action |
+| Tier | Reference action price | Typical action |
 |---|---:|---|
-| Standard | **$0.00001** | Simple read, single record, lightweight API request |
-| Complex | **$0.00006** | Search, aggregation, multi-source queries, higher compute |
-| Premium | **$0.00010** | AI inference, GPU workloads, deep analytics, premium data |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | Search, aggregation, multi-source query, higher compute |
+| `premium` | `$0.005` | AI inference, GPU workload, deep analytics, premium data |
 
-AiFinPay charges a **1% protocol fee** on every successful transaction. The remaining **99%** is settled to the merchant, excluding any applicable payment network or settlement costs.
+Current AIFP-1 merchant-monetization profile:
+
+- AiFinPay protocol fee: exactly **1% (`100` bps)**;
+- creator/referral fee: **0 bps**;
+- merchant amount: **99% before external network/settlement costs**.
+
+AIFP-2/x402 is a separate agent-payment route profile with `treasuryBps=0` and `creatorBps=0`. Do not apply the AIFP-1 1% fee to an AIFP-2 payment.
 
 ---
 
-## 1. Merchant Quick Start (paywall your API)
+## 2. Merchant Flow
 
-**Goal:** return a `402` AIFP challenge when an agent must pay for an action, then
-verify the receipt it brings back.
+A merchant integration needs four behaviors:
 
-### a. Install
+1. identify the merchant and protected resource/scope;
+2. return an AIFP-1 `402` challenge when payment is required;
+3. verify an AIFP-1 receipt locally before serving protected access;
+4. meter or consume the receipt/quota according to its scope and replay rules.
 
-```bash
-npm install @aifinpay/merchant     # Node
-pip install aifinpay-merchant      # Python
-```
+Illustrative middleware shape:
 
-### b. Wrap your endpoint (Express)
-
-```js
-import express from "express";
-import { aifp } from "@aifinpay/merchant";
-
-const app = express();
-
-// Charges the Standard action tier (from $0.00001) for /api/data.
-app.use("/api/data", aifp.protect({
-  apiKey: process.env.AIFP_KEY,          // sk_test_...
-  merchantId: "mrch_9f3a1c2b",
-  pricingTier: "standard"
+```ts
+app.use(aifpPaywall({
+  merchantId: "mrch_example",
+  pricing: {
+    "/api/data": { tier: "standard" },
+    "/api/search": { tier: "complex" },
+    "/api/inference": { tier: "premium" }
+  }
 }));
-
-app.get("/api/data", (req, res) => res.json({ data: "premium payload" }));
-app.listen(3000);
 ```
 
-The middleware does everything in AIFP-1 §7.4: if no valid receipt, it returns a
-`402` challenge; if a receipt is present it verifies the Ed25519 signature **locally**
-(no network call), checks `aud`, `resource`, `amount`, `exp`, and `nonce`, then calls
-your handler.
-
-### c. Verify a receipt manually (any language)
-
-```python
-from aifinpay_merchant import verify_receipt
-ok, claims = verify_receipt(jwt, merchant_id="mrch_9f3a1c2b", resource="/api/data")
-# ok == True only if signature + aud + resource + amount + exp + unused-nonce all pass
-```
-
-In production, settlement through stablecoin or hybrid fiat/stablecoin rails lands at your payout address after the 1% AiFinPay protocol fee and any network or settlement costs.
+A conforming implementation must fail closed when receipt signature, audience, scope/resource, expiry, amount/quota, or replay/idempotency checks fail.
 
 ---
 
-## 2. Agent Quick Start (pay for a resource)
+## 3. Agent Flow
 
-**Goal:** an autonomous agent hits a paywalled API and pays itself through.
+An AIFP-1-aware agent should:
 
-### a. Install
+1. request the protected resource;
+2. recognize an AIFP-1 `402` challenge;
+3. enforce its own spend/budget policy;
+4. request a binding quote;
+5. verify that the selected settlement route is supported and verifiable **before paying**;
+6. sign and broadcast settlement from the payer wallet or explicitly supported payment rail;
+7. submit the settlement reference for verification;
+8. receive a receipt only after settlement verification succeeds;
+9. retry the original request with the receipt.
 
-```bash
-npm install @aifinpay/agent        # Node / TS
-pip install aifinpay-agent         # Python
-```
-
-### b. Pay-through in one call
-
-```python
-from aifinpay_agent import Agent
-
-agent = Agent(api_key="sk_test_...", wallet_id="wlt_3a1b")
-
-# The SDK runs the full loop automatically:
-# 402 -> /v1/quote -> /v1/pay -> retry with Payment-Receipt
-resp = agent.get("https://merchant.example.com/api/data")
-print(resp.json())          # { "data": "premium payload" }
-print(resp.aifp.receipt_id) # rcpt_7b3e9f21
-```
-
-### c. What happened under the hood
+Conceptual HTTP sequence:
 
 ```http
-GET /api/data                          -> 402 + AIFP challenge (qt url, nonce, from $0.00001)
-POST /v1/quote {merchant,resource}     -> 200 quote_id=qt_8d21f0
-POST /v1/pay   {quote_id,wallet,asset} -> 200 receipt (EdDSA JWT), tx_ref=0xabc...
-GET /api/data  Payment-Receipt: <jwt>   -> 200 payload
+GET /api/data
+→ 402 + AIFP-1 challenge
+
+POST /v1/quote
+→ quote_id + merchant + resource/scope + amount + asset/route + expiry
+
+[payer signs and broadcasts settlement]
+
+POST /v1/pay
+{ "quote_id": "...", "chain": "...", "asset": "...", "tx_ref": "..." }
+→ receipt only after verification
+
+GET /api/data
+Payment-Receipt: <receipt>
+→ protected response when receipt validation succeeds
 ```
 
-Set a spend cap so the agent can't overspend (returns `AIFP-403-BUDGET-EXCEEDED`):
-
-```python
-agent.set_budget(window="day", cap_usd="50.00")
-```
+A quote must not instruct the agent to pay through a route whose settlement verifier is unavailable or unable to validate the quoted economic profile.
 
 ---
 
-## 3. Wallet Quick Start
+## 4. Economic Route Isolation
 
-```python
-from aifinpay_agent import Wallet
+AIFP-1 and AIFP-2 are intentionally distinct:
 
-# Non-custodial wallet (keys stay with you). custodial also supported.
-wallet = Wallet.create(api_key="sk_test_...", agent_id="agt_4f9a2c7e", type="non_custodial")
-print(wallet.wallet_id)            # wlt_3a1b
+| Route class | AiFinPay fee | Creator/referral | Intended use |
+|---|---:|---:|---|
+| AIFP-1 | `100` bps | `0` bps | Merchant AI-traffic/resource monetization |
+| AIFP-2/x402 | `0` bps | `0` bps | Agent x402-style payment route |
 
-# Fund it (sandbox faucet)
-wallet.fund_test(asset="USDC", amount="25.00", chain="polygon")
-print(wallet.balances())           # {"USDC": "25.00"}
-```
-
-Supported assets: **USDC, USDT, PYUSD**. Supported chains: 12 networks — Full Core
-(8) Solana, Polygon, Avalanche, BNB Chain, Optimism, Arbitrum, Base, Unichain;
-Splitter-only EVM (2) BOT Chain, XRPL EVM; MVP non-EVM (2) NEAR, Aptos.
+Implementations must not silently fall back between these profiles. A route mismatch must fail closed.
 
 ---
 
-## 4. SDK Installation Matrix
+## 5. Settlement Safety
 
-| Language | Agent SDK | Merchant SDK |
-|---|---|---|
-| TypeScript/Node | `npm i @aifinpay/agent` | `npm i @aifinpay/merchant` |
-| Python | `pip install aifinpay-agent` | `pip install aifinpay-merchant` |
-| Go | `go get github.com/aifinpay/aifp-go` | same module |
-| Rust | `cargo add aifinpay` | same crate |
-| Java | `implementation "io.aifinpay:aifp:1.0.0"` | same |
-| PHP | `composer require aifinpay/aifp` | same |
-| C# | `dotnet add package AiFinPay` | same |
+Before a route is treated as payment-live, the implementation should have evidence for:
 
-Full method reference: **Doc 11 — SDK Reference**.
+- canonical contract/program/address and source provenance;
+- correct route economics (`100/0` for AIFP-1);
+- supported asset decimals and amount conversion;
+- quote binding to merchant, resource/scope, amount, asset, chain, and expiry;
+- settlement verification before receipt issuance;
+- replay/idempotency rejection;
+- finality/reorg handling appropriate to the network;
+- ledger/reconciliation and operational monitoring where applicable.
 
----
-
-## 5. Real-World Interaction Patterns
-
-| Scenario | Merchant behavior | Agent behavior | Operational notes |
-|---|---|---|---|
-| Paid data API | Price `/api/company/:id` as `standard`; return `402` after free quota; verify `Payment-Receipt` locally on retry | Detect `402`, request quote, pay from budgeted wallet, retry original GET | Cache JWKS, consume receipt nonce atomically, log `receipt_id` for audit |
-| RAG retrieval pipeline | Price search as `complex`; include resource path and query class in the challenge | Batch retrieval calls but pay per protected result page within daily cap | Bind receipt `resource` to the canonical route, not raw unnormalized query text |
-| Premium inference endpoint | Price GPU or model calls as `premium`; use `425` for high-value async settlement if configured | Honor `Retry-After`, poll or wait for webhook, then replay with the same receipt | Use strict amount comparison and do not serve until settlement policy is satisfied |
-| Licensed crawler access | Serve public quota first, then challenge crawler traffic instead of blocking | Present Passport for reputation and negotiated quota; pay automatically when quota is exhausted | Do not treat `AIFP-Agent-ID` alone as identity; require Passport for durable crawler reputation |
-| Merchant back-office reconciliation | Consume `settlement.completed`, `payout.completed`, and `dispute.opened` webhooks | No direct agent action after receipt redemption | Verify HMAC, reject duplicate webhook `id`, and reconcile `tx_ref` against internal ledger |
+A chain being deployed does **not** automatically mean every AIFP-1 payment route on that chain is live.
 
 ---
 
-## 6. Running Your First Demo
+## 6. Receipt Verification
 
-```bash
-# Clone the official examples
-git clone https://github.com/aifinpay/examples
-cd examples/quickstart
+Merchant-side verification should validate at least the claims required by the active receipt profile:
 
-# Terminal 1 — start a paywalled merchant on :3000
-AIFP_KEY=sk_test_... node merchant.js
+- allowed signature algorithm and trusted key;
+- issuer;
+- merchant/audience;
+- resource or scope;
+- paid amount/quota semantics;
+- expiry;
+- nonce/payment/replay binding.
 
-# Terminal 2 — run an agent that pays through
-AIFP_KEY=sk_test_... node agent.js
-# -> 402 detected, quoted Standard from $0.00001, paid, receipt rcpt_..., got payload
-```
-
----
-
-## 7. Testing
-
-```bash
-# Dry-run the full loop without spending (sandbox)
-aifp demo --sandbox --resource /api/data --tier standard
-
-# Assert receipt verification
-aifp verify --receipt "$JWT" --merchant mrch_9f3a1c2b --resource /api/data
-```
-
-Use the **Postman collection (Doc 09)** for click-through testing — it auto-chains
-quote → pay → receipt and auto-generates the `Idempotency-Key`.
+Monetary values must use exact decimal or integer minor-unit arithmetic, not binary floating-point comparisons.
 
 ---
 
-## 8. Sandbox vs Production
+## 7. Testing Checklist
 
-| | Sandbox | Production |
-|---|---|---|
-| Base URL | `sandbox.api.aifinpay.io` | `api.aifinpay.io` |
-| Keys | `sk_test_...` | `sk_live_...` |
-| Settlement | simulated, faucet funds | real stablecoin / hybrid fiat |
-| JWKS | test `kid` | rotating prod `kid` |
+Before declaring an integration ready, test:
 
-To go live: swap the base URL + key, point your payout address to a real wallet, and
-re-run the demo. No code changes.
-
----
-
-## 9. Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `402` keeps repeating | Receipt not attached on retry | Send `Payment-Receipt: <jwt>` header |
-| `AIFP-422-SIGNATURE` | Wrong JWKS / stale `kid` | Refresh `/.well-known/jwks.json`; check `kid` |
-| `AIFP-403-BUDGET-EXCEEDED` | Spend cap hit | Raise budget or wait for window reset |
-| `AIFP-409` | Reused nonce / idempotency conflict | Get a **fresh** quote; new `Idempotency-Key` |
-| `AIFP-410` | Quote expired | Re-quote (quotes are short-lived) |
-| `AIFP-425` | Settlement not confirmed | Honor `Retry-After`, retry same `receipt_id` |
-| `AIFP-429` | Rate limited | Exponential backoff; honor `Retry-After` |
-
-Still stuck? See the full error registry in **AIFP-1 Appendix C**, or open an issue at
-`github.com/aifinpay/aifp` (Doc 15).
+- unpaid request → `402` with machine-readable AIFP-1 challenge;
+- correct quote uses `$0.0005 / $0.002 / $0.005` reference tiers when those presets are selected;
+- AIFP-1 settlement results in `100/0`, not `100/1`;
+- merchant receives the quoted merchant amount according to the selected contract semantics;
+- creator/referral amount is zero;
+- receipt is never issued for an unverifiable or mismatched settlement;
+- valid receipt unlocks only its intended resource/scope;
+- expired, malformed, cross-merchant, underpaid, or replayed proofs fail closed;
+- AIFP-2 `0/0` routes cannot be confused with AIFP-1 `100/0` routes.
 
 ---
 
-**Next:** Doc 02 (Merchant Integration Guide, 15 frameworks) · Doc 03 (Agent SDK Spec) ·
-Doc 11 (SDK Reference) · Doc 08 (OpenAPI).
+## 8. Related Documents
+
+- [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
+- [Merchant Integration Guide](./02-Merchant-Integration-Guide.md)
+- [AI Agent SDK Specification](./03-AI-Agent-SDK-Specification.md)
+- [Security & Cryptography Specification](./04-Security-and-Cryptography-Specification.md)
+- [Protocol Economics](../economics.md)
+- [OpenAPI 3.1](./08-OpenAPI-3.1-Specification.yaml)
+- [JSON Schemas](./10-JSON-Schemas.md)
