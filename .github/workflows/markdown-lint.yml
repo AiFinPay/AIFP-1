@@ -14,4 +14,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run markdownlint
-        run: npx --yes markdownlint-cli2 "**/*.md" "!node_modules"
+        shell: bash
+        run: |
+          set +e
+          output="$(npx --yes markdownlint-cli2 "**/*.md" "!node_modules" 2>&1)"
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                safe="${line//'%'/'%25'}"
+                safe="${safe//$'\r'/'%0D'}"
+                safe="${safe//$'\n'/'%0A'}"
+                echo "::error title=markdownlint::$safe"
+              fi
+            done <<< "$output"
+          fi
+          exit "$status"
