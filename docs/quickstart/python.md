@@ -1,84 +1,112 @@
-# Python Quick Start
+# Python AIFP-1 Quick Start
 
-## What You Need
+This page demonstrates the AIFP-1 protocol flow in Python-style pseudocode. Verify actual package names, published versions, and current APIs in their source/package registries before using package-specific code.
 
-- Python 3.11 or newer.
-- An AiFinPay sandbox merchant endpoint.
-- A test wallet funded with sandbox tokens.
-- A sandbox API key that starts with `sk_test_`.
-- A test token source for sandbox funds. The public faucet URL is published with the hosted sandbox.
-
-## Install
-
-```bash
-pip install --pre aifinpay-agent aifinpay-merchant
-```
-
-`alpha` means the API may change while the SDK surface is still being settled.
-
-## Sandbox Example
+## Current Economics
 
 ```python
-import asyncio
-import os
-
-from aifinpay_agent import Agent
-
-async def main():
-    agent = Agent(
-        api_key=os.environ["AIFP_AGENT_KEY"],
-        wallet_id=os.environ["AIFP_WALLET_ID"],
-        base_url="https://sandbox.api.aifinpay.io",
-    )
-
-    response = await agent.call(
-        "https://sandbox.merchant.example/api/data",
-        headers={"Accept-Payment": "aifp/1.0"},
-    )
-
-    print(response.model_dump_json(indent=2))
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-Example sandbox response:
-
-```json
-{
-  "ok": true,
-  "resource": "/api/data",
-  "pricing_tier": "standard",
-  "quote_id": "qt_sbx_01",
-  "receipt_id": "rcpt_sbx_01",
-  "receipt_status": "settled",
-  "charged_amount": "0.00001",
-  "protocol_fee": "0.0000001",
-  "merchant_settlement": "0.0000099"
+AIFP1_PRICES_USD = {
+    "standard": "0.0005",
+    "complex": "0.002",
+    "premium": "0.005",
 }
+AIFP1_TREASURY_BPS = 100
+AIFP1_CREATOR_BPS = 0
 ```
 
-## What Happened Under The Hood
+AIFP-2/x402 is a separate `0/0` route profile.
 
-The SDK detected the `402` challenge, asked for a quote, paid the sandbox amount, received a
-receipt token, and retried the request with that receipt attached. The token is a short-lived,
-signed proof that binds the merchant, resource, amount, and nonce. The protocol flow is explained
-in [x402 Flow](../core-concepts/x402-flow.md). Verification stays local to the merchant.
+## Protocol-Oriented Example
 
-## Going To Production
+```python
+import uuid
 
-- Audit the merchant contract and receipt verification path.
-- Set explicit spend limits on the wallet.
-- Switch the base URL from sandbox to production only after approval.
-- Replace sandbox keys with production keys.
-- Add monitoring for 402, 409, 410, 422, and 429 responses.
-- Confirm the payout account and settlement rail before enabling live spend.
+async def pay_aifp1_resource(url, http, wallet):
+    first = await http.get(url)
+    if first.status_code != 402:
+        return first
 
-## Common Mistakes
+    challenge = first.json()
+    if challenge.get("protocol") != "AIFP-1":
+        raise RuntimeError("not an AIFP-1 challenge")
 
-- Forgetting to `await` the async client call.
-- Mixing `sk_test_` and `sk_live_` keys.
-- Reusing an expired quote.
-- Reusing a nonce.
-- Missing an async event loop when running the example in notebooks.
+    quote_res = await http.post(
+        challenge["quote_endpoint"],
+        json={
+            "merchant_id": challenge["merchant_id"],
+            "resource": challenge["resource"],
+            "pricing_tier": challenge["pricing_tier"],
+            "units": 1,
+        },
+    )
+    quote_res.raise_for_status()
+    quote = quote_res.json()
+
+    if quote.get("route_class") != "AIFP-1":
+        raise RuntimeError("route mismatch")
+    if int(quote.get("treasury_bps", -1)) != 100:
+        raise RuntimeError("treasury fee mismatch")
+    if int(quote.get("creator_bps", -1)) != 0:
+        raise RuntimeError("creator fee mismatch")
+
+    await assert_budget_allows(quote)
+
+    # Build against the canonical verified deployment for this route.
+    tx = await build_settlement_from_verified_registry(quote)
+
+    # Signing remains local to the payer wallet.
+    tx_ref = await wallet.sign_and_broadcast(tx)
+
+    pay_res = await http.post(
+        "https://api.aifinpay.io/v1/pay",
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "quote_id": quote["quote_id"],
+            "chain": quote["chain"],
+            "asset": quote["asset"],
+            "tx_ref": tx_ref,
+        },
+    )
+
+    if pay_res.status_code == 202:
+        raise RuntimeError("settlement pending; reconcile before another payment")
+    pay_res.raise_for_status()
+    receipt = pay_res.json()
+
+    return await http.get(
+        url,
+        headers={"Payment-Receipt": receipt["receipt"]},
+    )
+```
+
+## Safety Requirements
+
+- distinguish AIFP-1 from x402 before payment;
+- validate `100/0` economics before signing;
+- apply budget/policy before signing;
+- use `decimal.Decimal` or integer token units for money, not `float`;
+- derive token amounts from actual token decimals;
+- sign locally and submit only the settlement reference for verification;
+- do not issue/trust a receipt until verification succeeds;
+- reconcile a potentially broadcast transaction before retrying;
+- reject duplicate/replayed settlement consumption.
+
+## Exact Money Example
+
+```python
+from decimal import Decimal
+
+required = Decimal("0.0005")
+quoted = Decimal("0.0005")
+assert quoted >= required
+```
+
+For on-chain values, prefer integer base units once asset decimals are known.
+
+## Going Live
+
+A route should not be enabled for real spend until its chain/asset has a canonical target, correct AIFP-1 economics, SDK transaction construction, settlement verification, token-decimal validation, and completed end-to-end evidence.
+
+Changing a URL or API key alone is not a production-readiness gate.
+
+See [AIFP-1 HTTP 402 Flow](../core-concepts/x402-flow.md) and [Agent SDK Specification](../aifp/03-AI-Agent-SDK-Specification.md).
