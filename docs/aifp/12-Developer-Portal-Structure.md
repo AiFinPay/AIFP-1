@@ -1,172 +1,195 @@
-# AIFP Developer Portal Structure
+# AIFP-1 Developer Portal Structure
 
-**Document:** AIFP-DOC-12 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
-**Reference quality bar:** Stripe Docs · Cloudflare Developers · Google Cloud · Kubernetes.
+**Document:** AIFP-DOC-12  
+**Status:** Draft information architecture  
+**Governed by:** AIFP-1 repository documentation
 
-> This document specifies the information architecture, navigation, and feature set of
-> the official AIFP developer portal at **`https://docs.aifinpay.io`**. All content maps
-> to the canonical documents (01–15); the portal renders them — it is not a new source of
-> truth.
+This document describes the intended information architecture for AIFP-1 developer documentation. It is a design target, not a claim that every portal feature, package download, sandbox endpoint, or interactive tool already exists.
 
----
+## 1. Portal Principles
 
-## 1. Information Architecture
+The portal should:
+
+- make **AIFP-1 merchant monetization** the primary subject of this repository;
+- separate AIFP-1 from AIFP-2/x402 and AIFP-3 identity;
+- render canonical repository content rather than creating a second source of truth;
+- generate API/reference pages from OpenAPI and schemas where practical;
+- label draft, experimental, verified, and payment-live status precisely;
+- avoid showing stale pricing or legacy `100/1` economics as current.
+
+## 2. Current Economics Block
+
+Every relevant pricing page should consistently show:
+
+| AIFP-1 item | Current value |
+|---|---:|
+| Standard | `$0.0005` |
+| Complex | `$0.002` |
+| Premium | `$0.005` |
+| AiFinPay protocol fee | `1%` / `100` bps |
+| Creator/referral fee | `0` bps |
+| Merchant amount | `99%` before external network/settlement costs |
+
+AIFP-2/x402 must be shown separately as a `0/0` AiFinPay fee profile.
+
+## 3. Suggested Information Architecture
 
 ```text
-docs.aifinpay.io
-├── Home (value prop · "4-step loop" hero · quick links)
+AIFP-1 Docs
+├── Home
+│   ├── What AIFP-1 is
+│   ├── Current economics
+│   ├── HTTP 402 flow
+│   └── Draft / implementation-status notice
 ├── Get Started
-│   ├── Quick Start (Doc 07)            ← 5-minute path
-│   ├── Merchant Quick Start
-│   ├── Agent Quick Start
-│   └── Wallet Quick Start
+│   ├── Merchant integration
+│   ├── Agent payment flow
+│   └── Receipt verification
 ├── Concepts
-│   ├── HTTP 402 & the Payment Challenge (AIFP-1 §5–6)
-│   ├── Receipts & Stateless Verification (AIFP-1 §7)
-│   ├── Action Pricing & Fees (Standard · Complex · Premium · 1% protocol fee)
-│   ├── Agent Passport, Reputation & Trust (AIFP-1 §24, §10.2; Doc 03 §9)
+│   ├── AIFP-1 vs AIFP-2/x402
+│   ├── Payment Challenge
+│   ├── Binding Quote
+│   ├── Non-custodial Settlement
+│   ├── Settlement Verification
+│   ├── Receipts & Scope
+│   ├── Pricing & Metering
 │   ├── Budgets & Idempotency
-│   └── Settlement & Multi-chain (12 networks)
-├── Guides
-│   ├── Merchant Integration (Doc 02 · 15 frameworks)
-│   ├── Building an Agent (Doc 03)
-│   ├── x402 Migration
-│   ├── Hybrid Fiat Settlement
-│   └── Webhooks
+│   └── Route Registry / Deployment Provenance
 ├── API Reference
-│   ├── API Explorer (live, OpenAPI 3.1 · Doc 08)
-│   ├── Quote · Pay · Receipt · Verify
-│   ├── Merchant · Wallet · Passport · Migration
-│   ├── Errors (registry · AIFP-1 App. C)
-│   └── JSON Schemas (Doc 10)
-├── SDKs
-│   ├── SDK Reference (Doc 11)
-│   ├── TypeScript · Python · Go · Rust · Java · PHP · C#
-│   └── Downloads & Versions
-├── Tools
-│   ├── Sandbox (test keys · faucet)
-│   ├── Postman Collection (Doc 09)
-│   ├── Receipt Inspector (paste a JWT → decoded claims + validity)
-│   └── Code Samples / Recipes
+│   ├── Quote
+│   ├── Settlement verification / Pay
+│   ├── Receipt
+│   ├── Assisted Verify
+│   └── JWKS
+├── Machine-Readable
+│   ├── OpenAPI 3.1
+│   ├── JSON Schemas
+│   └── Postman Collection
 ├── Protocol
-│   ├── AIFP-1 RFC (Doc 01)
-│   ├── Whitepaper (Doc 05)
-│   ├── AIP Process & Index (Doc 06)
-│   ├── Security & Cryptography (Doc 04)
-│   └── Ecosystem & Governance (Doc 14)
-├── Resources
-│   ├── Changelog
-│   ├── Status / Uptime
-│   ├── FAQ
-│   ├── Branding (Doc 13)
-│   └── GitHub / Repos (Doc 15)
-└── Footer (Version Selector · Search · Language · Support)
+│   ├── AIFP-1 RFC
+│   ├── Economics
+│   ├── Security
+│   ├── AIP Process
+│   ├── Whitepaper
+│   └── Changelog
+└── Implementation Status
+    ├── SDK/package links verified from actual registries
+    ├── Payment-live route evidence
+    └── Legacy / deprecated material
 ```
 
----
+## 4. Protocol Boundaries In Navigation
 
-## 2. Navigation
+The portal must not put Passport APIs or generic x402 migration APIs inside the AIFP-1 API reference unless a page is explicitly describing a cross-protocol integration.
 
-- **Primary nav (top):** Get Started · Guides · API Reference · SDKs · Protocol.
-- **Persistent left sidebar:** section tree (collapsible, deep-linkable anchors).
-- **Right "on this page" rail:** in-page heading outline for long docs.
-- **Breadcrumbs:** `Docs / Section / Page`.
-- **Role switcher (top-right):** *I am a…* **Merchant / Agent Developer / Wallet** — re-orders
-  Get Started and surfaces the relevant Quick Start.
+Recommended cross-links:
 
----
+- AIFP-1 page → "Agent payments via AIFP-2/x402" as a separate protocol link;
+- AIFP-1 page → "Agent identity via AIFP-3" as a separate protocol link.
 
-## 3. Search
+Do not rename AIFP-1's own HTTP `402` challenge as an x402 challenge.
 
-- Full-text, typo-tolerant, instant (`/` to focus). Indexes all docs + API + SDK + AIPs.
-- **Scoped facets:** Concepts · Guides · API · SDK · Errors. Searching an error code
-  (e.g. `AIFP-422-SIGNATURE`) jumps straight to its registry entry.
-- **AI answer box** (optional) grounded **only** in the canonical docs; every answer cites
-  the source doc/section.
+## 5. API Reference
 
----
+The API reference should be generated from `08-OpenAPI-3.1-Specification.yaml`.
 
-## 4. API Explorer
+For each operation show:
 
-- Rendered from **`08-OpenAPI-3.1-Specification.yaml`** (single source).
-- Try-it-out with a **sandbox** key prefilled (`sk_test_*`), never production by default.
-- Per-operation: request schema, response schemas, examples, error table, and
-  copy-paste snippets in all 7 SDK languages + cURL.
-- "Run in Postman" button (links Doc 09 collection).
+- request schema;
+- response schema;
+- route/profile requirements;
+- error cases;
+- whether the route is only a protocol definition or currently backed by a verified implementation;
+- copyable examples that use current economics.
 
----
+A "Try it" control should only be enabled when a corresponding environment is actually configured and safe to use. Documentation must not invent test keys or a sandbox/faucet that has not been verified.
 
-## 5. Code Samples & Recipes
+## 6. SDK / Package Pages
 
-Each recipe is runnable and language-tabbed (TS/Py/Go/Rust/Java/PHP/C#/cURL):
-- Paywall an endpoint · Pay through a 402 · Verify a receipt · Set a budget ·
-  Create an Agent Passport · Migrate from x402 · Handle async (`202`) settlement ·
-  Webhook signature verification.
+Package cards must be generated or manually verified against real package registries and source repositories.
 
-Samples are **lint-checked in CI against the OpenAPI + JSON Schemas** so they cannot drift.
+Each card should show:
 
----
+- package name;
+- current published version;
+- source repository;
+- language/runtime;
+- supported AIFP route classes;
+- supported chains/assets based on current release evidence;
+- release date/hash where useful.
 
-## 6. Authentication (portal-side)
+Do not list planned Rust/Java/PHP/.NET packages as downloadable merely because the protocol has language examples.
 
-- **Dashboard sign-in** (separate from docs) at `dashboard.aifinpay.io` for keys.
-- Docs show keys via a **placeholder** (`sk_test_REPLACE_ME`); signed-in users may inject
-  their **sandbox** key into the API Explorer for that session only (never persisted in
-  shareable URLs).
-- Two key planes documented everywhere: **API key** (`Authorization: Bearer`) +
-  **Agent Passport** signature (AIFP-1 §10).
+## 7. Chain / Route Status
 
----
+A network status page should distinguish:
 
-## 7. SDK Downloads
+| Status | Meaning |
+|---|---|
+| `deployed` | some relevant code/contract exists on the network |
+| `canonical target identified` | source/address relationship is resolved |
+| `verifier ready` | backend can independently verify the selected payment path |
+| `SDK ready` | client can construct the correct current route |
+| `E2E verified` | complete payment evidence bundle exists |
+| `payment-live` | explicitly approved for current product use |
+| `legacy` | historical/superseded deployment, not selected for current payments |
 
-| Language | Package | Badge |
-|---|---|---|
-| TypeScript | `@aifinpay/agent`, `@aifinpay/merchant` | npm version |
-| Python | `aifinpay-agent`, `aifinpay-merchant` | PyPI |
-| Go | `github.com/aifinpay/aifp-go` | pkg.go.dev |
-| Rust | `aifinpay` | crates.io |
-| Java | `io.aifinpay:aifp` | Maven Central |
-| PHP | `aifinpay/aifp` | Packagist |
-| C# | `AiFinPay` | NuGet |
+Never reduce these dimensions to one unsupported "12 chains" or "13 chains live" claim in protocol documentation.
 
-Each card links source repo (Doc 15), changelog, and the SDK Reference (Doc 11) section.
+## 8. Search And Cross-Linking
 
----
+Search should index:
 
-## 8. Sandbox
+- protocol docs;
+- OpenAPI/schema objects;
+- error names;
+- AIPs;
+- changelog;
+- route/economics terms such as `100/0`, `0/0`, `treasuryBps`, `creatorBps`.
 
-- Base URL `https://sandbox.api.aifinpay.io`, test keys, and hosted sandbox test-token tooling.
-- Simulated settlement; test `kid` JWKS. One-click "reset sandbox" and "seed merchant +
-  agent + wallet" fixtures.
+Useful query aliases:
 
----
+- `402` → AIFP-1 HTTP 402 flow;
+- `x402` → AIFP-1 vs AIFP-2 boundary page;
+- `1%` → AIFP-1 economics;
+- `0%` → AIFP-2 route link;
+- `standard price` → `$0.0005`.
 
-## 9. Changelog & Versioning
+## 9. Quality Gates
 
-- **Version selector** (top-right) switches the whole portal between protocol MAJOR/MINOR
-  versions; deep links preserve the version.
-- Changelog entries link the **AIP** (Doc 06) that introduced the change and tag
-  `breaking | feature | fix` per SemVer (Doc 06 §5).
+Portal/document CI should detect:
 
----
+- broken links;
+- invalid OpenAPI;
+- malformed JSON/Postman;
+- Markdown errors where configured;
+- current-product occurrences of superseded `$0.00001 / $0.00006 / $0.00010` pricing;
+- current-product `100/1` or `0.01% creator` examples;
+- contradictory AIFP-1 vs AIFP-2 fee statements.
 
-## 10. FAQ (seed set)
+Historical/changelog/migration sections may retain old values only when explicitly labeled legacy or superseded.
 
-- *Does AIFP have a token?* No — tokenless by design (Whitepaper §14).
-- *Do I call AiFinPay to verify a receipt?* No — verification is local/stateless (§7.4).
-- *Which chains/assets?* 12 networks; USDC/USDT/PYUSD (Doc 01 App. B).
-- *How do micropayments work?* Agent actions are priced by tier: Standard from $0.00001, Complex from $0.00006, Premium from $0.00010.
-- *What is the protocol fee?* AiFinPay charges 1% on successful transactions; 99% settles to the merchant, excluding applicable network or settlement costs.
-- *Is it x402-compatible?* Yes. Migration incentives, if any, are published through the official developer portal.
+## 10. Security And Secrets
 
----
+Documentation/examples must never contain:
 
-## 11. Portal Tech & Quality Bar
+- private keys;
+- recovery phrases;
+- live API secrets;
+- production signing key material;
+- merchant origin secrets;
+- reusable authentication tokens.
 
-- Static-site generator (docs-as-code; Markdown in the repo → portal). Content lives in
-  `aifinpay/docs` (Doc 15); PRs preview-deploy.
-- A11y AA, dark/light, mobile-first, sub-1s search, copy buttons on every code block,
-  permalink anchors, and "Edit this page on GitHub" on every doc.
-- **Single source of truth:** the portal builds from Docs 01–15 + the OpenAPI/Schema/
-  Postman artifacts. No content is authored only in the portal.
+Examples should use unmistakable placeholders.
+
+## 11. Status Language
+
+Use precise labels:
+
+- `Draft specification` for the protocol document;
+- `Reference implementation` only when source exists;
+- `Verified deployment` only with deployment evidence;
+- `Payment-live` only after the current route passes the required release/conformance gate;
+- `Production-ready` only if explicitly approved and evidenced.
+
+The portal is a documentation surface, not proof of production readiness.
