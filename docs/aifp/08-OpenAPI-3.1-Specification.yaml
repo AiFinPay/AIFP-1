@@ -8,14 +8,18 @@ info:
     AIFP-1 is the merchant AI-traffic/resource monetization profile. It uses
     HTTP 402 but is not identical to AIFP-2/x402.
 
-    Current AIFP-1 reference action prices:
+    Current AIFP-1 reference action prices are gross payer prices:
       - standard: USD 0.0005
       - complex: USD 0.002
       - premium: USD 0.005
 
     Current AIFP-1 economics:
+      - settlement semantics: gross-inclusive / fee-from-gross
       - treasury_bps: 100 (1% AiFinPay protocol fee)
       - creator_bps: 0
+      - merchant share: 99% of gross
+      - payer settlement amount: exactly the quoted gross amount
+      - fee-on-top: not permitted
 
     AIFP-2/x402 is a separate 0/0 route profile and is outside this OpenAPI
     contract. This specification does not claim that every route, asset, chain,
@@ -30,11 +34,14 @@ info:
   x-protocol: AIFP-1
   x-status: draft
   x-economics:
+    settlement_semantics: gross-inclusive
     treasury_bps: 100
     creator_bps: 0
-    standard_usd: "0.0005"
-    complex_usd: "0.002"
-    premium_usd: "0.005"
+    merchant_share: "0.99"
+    protocol_fee_share: "0.01"
+    standard_gross_usd: "0.0005"
+    complex_gross_usd: "0.002"
+    premium_gross_usd: "0.005"
 
 servers:
   - url: https://api.aifinpay.io
@@ -45,7 +52,7 @@ security:
 
 tags:
   - name: Quote
-    description: Create binding AIFP-1 merchant-payment quotes.
+    description: Create binding gross-inclusive AIFP-1 merchant-payment quotes.
   - name: Settlement
     description: Verify payer-executed settlements before receipt issuance.
   - name: Receipt
@@ -63,6 +70,12 @@ paths:
         A payable quote MUST only be returned for a settlement route that the
         active verifier can validate. Unsupported or unverifiable routes must
         fail before the payer is instructed to send funds.
+
+        The quoted gross_amount is the full AIFP-1 commercial amount paid by
+        the payer. The protocol fee is deducted from gross; it is not added on
+        top. For current AIFP-1 economics, payer_total_amount equals gross_amount,
+        merchant_amount is 99% of gross, protocol_fee_amount is 1% of gross,
+        and creator_amount is zero.
       requestBody:
         required: true
         content:
@@ -92,7 +105,11 @@ paths:
                     merchant_id: mrch_example
                     resource: /api/data
                     pricing_tier: standard
-                    merchant_amount: "0.0005"
+                    gross_amount: "0.0005"
+                    payer_total_amount: "0.0005"
+                    merchant_amount: "0.000495"
+                    protocol_fee_amount: "0.000005"
+                    creator_amount: "0"
                     currency: USD
                     treasury_bps: 100
                     creator_bps: 0
@@ -105,7 +122,7 @@ paths:
         '409':
           description: Requested profile conflicts with route policy.
         '422':
-          description: Requested asset/chain/profile is unsupported or unverifiable.
+          description: Requested asset/chain/profile is unsupported, unverifiable, or economically inconsistent.
         '503':
           description: No verifiable settlement route is currently available.
 
@@ -117,8 +134,9 @@ paths:
       description: |
         The payer signs and broadcasts the settlement using its own wallet or
         another explicitly supported payer rail. This endpoint verifies the
-        submitted settlement reference against the binding quote. A receipt
-        MUST NOT be issued unless verification succeeds.
+        submitted settlement reference against the binding quote, including
+        the gross-inclusive 99/1 AIFP-1 split. A receipt MUST NOT be issued
+        unless verification succeeds.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -152,7 +170,7 @@ paths:
         '410':
           description: Quote expired or is no longer payable.
         '422':
-          description: Settlement does not match the quote.
+          description: Settlement does not match the quote or required gross-inclusive economics.
         '503':
           description: Settlement verifier unavailable; no receipt issued.
 
@@ -282,7 +300,11 @@ components:
         - route_class
         - merchant_id
         - resource
+        - gross_amount
+        - payer_total_amount
         - merchant_amount
+        - protocol_fee_amount
+        - creator_amount
         - treasury_bps
         - creator_bps
         - expires_at
@@ -302,10 +324,26 @@ components:
           type: string
         pricing_tier:
           $ref: '#/components/schemas/PricingTier'
+        gross_amount:
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: Full commercial amount the payer settles for AIFP-1, excluding external gas/network cost.
+        payer_total_amount:
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: Settlement-rail payer amount. For current AIFP-1 it must equal gross_amount.
         merchant_amount:
-          $ref: '#/components/schemas/DecimalString'
-        total_amount:
-          $ref: '#/components/schemas/DecimalString'
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: Merchant net share derived from gross; 99% under the current AIFP-1 profile.
+        protocol_fee_amount:
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: AiFinPay share derived from gross; 1% under the current AIFP-1 profile.
+        creator_amount:
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: Creator/referral share; zero under the current AIFP-1 profile.
         currency:
           type: string
           default: USD
@@ -347,7 +385,19 @@ components:
     Receipt:
       type: object
       additionalProperties: true
-      required: [receipt_id, protocol, route_class, merchant_id, status, receipt, issued_at, expires_at]
+      required:
+        - receipt_id
+        - protocol
+        - route_class
+        - merchant_id
+        - gross_amount
+        - merchant_amount
+        - protocol_fee_amount
+        - creator_amount
+        - status
+        - receipt
+        - issued_at
+        - expires_at
       properties:
         receipt_id:
           type: string
@@ -366,7 +416,13 @@ components:
           type: string
         tx_ref:
           type: string
+        gross_amount:
+          $ref: '#/components/schemas/DecimalString'
         merchant_amount:
+          $ref: '#/components/schemas/DecimalString'
+        protocol_fee_amount:
+          $ref: '#/components/schemas/DecimalString'
+        creator_amount:
           $ref: '#/components/schemas/DecimalString'
         treasury_bps:
           type: integer
@@ -412,7 +468,9 @@ components:
         resource:
           type: string
         required_amount:
-          $ref: '#/components/schemas/DecimalString'
+          allOf:
+            - $ref: '#/components/schemas/DecimalString'
+          description: Required gross paid amount or quota-equivalent amount for the requested resource.
 
     VerifyResult:
       type: object
