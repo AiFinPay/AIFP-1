@@ -20,8 +20,11 @@ jobs:
           test -f docs/aifp/09-Postman-Collection.json
           test -f docs/aifp/10-JSON-Schemas.md
           test -f scripts/check-economics.py
+          test -f scripts/check-lifecycle.py
       - name: Check superseded pricing markers
         run: |
           ! grep -R "\$0\.01\|\$0\.04\|\$0\.08\|0\.3%\|0\.6%\|0\.9%\|complexity" --include='*.md' --include='*.json' --include='*.yaml' .
       - name: Check AIFP-1 gross-inclusive economics
         run: python scripts/check-economics.py
+      - name: Check AIFP-1 payer lifecycle safety
+        run: python scripts/check-lifecycle.py
