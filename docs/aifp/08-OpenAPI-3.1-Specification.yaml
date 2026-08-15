@@ -22,9 +22,11 @@ info:
       - fee-on-top: not permitted
 
     Budget and other payer/account spend-policy rejection belongs before signing
-    or broadcasting. Once a payer has executed a settlement matching an already-
-    issued payable quote, settlement verification must not withhold the receipt
-    solely because a budget threshold is discovered after payment.
+    or broadcasting. Quote expiry is likewise an authorization boundary before a
+    new settlement is initiated. Where the selected settlement rail can enforce
+    expiry atomically, it should fail before funds move. A later verification
+    timestamp alone must not be used to withhold a receipt for an otherwise valid
+    matching settlement that already succeeded.
 
     AIFP-2/x402 is a separate 0/0 route profile and is outside this OpenAPI
     contract. This specification does not claim that every route, asset, chain,
@@ -85,6 +87,10 @@ paths:
         top. For current AIFP-1 economics, payer_total_amount equals gross_amount,
         merchant_amount is 99% of gross, protocol_fee_amount is 1% of gross,
         and creator_amount is zero.
+
+        expires_at is the deadline after which the quote MUST NOT be used to
+        authorize/initiate a new settlement. A payment-live route should enforce
+        expiry before value transfer when its settlement mechanism supports it.
       requestBody:
         required: true
         content:
@@ -152,8 +158,15 @@ paths:
         This is a post-payment verification endpoint. If the payer executed a
         settlement that validly matches an already-issued payable quote, this
         endpoint MUST NOT deny the corresponding receipt solely because a budget
-        or spend-policy threshold is discovered after settlement. Budget/policy
-        rejection must happen before signing/broadcasting.
+        or spend-policy threshold is discovered after settlement.
+
+        Quote expiry MUST NOT be evaluated solely from the later /v1/pay request
+        time. The client must refuse to initiate a new settlement after expires_at,
+        and a rail that supports atomic expiry should reject before funds move.
+        If a matching settlement nevertheless already succeeded, the verifier
+        must use authoritative settlement/authorization evidence when available
+        and must not create a payer-loss condition merely because verification or
+        finality completed after expires_at.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -185,11 +198,11 @@ paths:
         '409':
           description: Duplicate/replay/idempotency conflict.
         '410':
-          description: Quote expired or is no longer payable.
+          description: Quote did not authorize this settlement because the settlement was initiated/executed outside the allowed validity rules. Do not return 410 solely because /v1/pay or finality occurred after expires_at for an otherwise valid matching settlement.
         '422':
           description: Settlement does not match the quote or required gross-inclusive economics.
         '503':
-          description: Settlement verifier unavailable; no receipt issued. Reconcile the same settlement reference rather than broadcasting a replacement payment.
+          description: Settlement verifier unavailable; no receipt issued yet. Reconcile/retry verification of the same settlement reference rather than broadcasting a replacement payment.
 
   /v1/receipt/{receipt_id}:
     get:
@@ -383,6 +396,7 @@ components:
         expires_at:
           type: string
           format: date-time
+          description: Deadline after which the quote must not be used to authorize/initiate a new settlement. Post-settlement verification may complete later according to the settlement-validity rules above.
 
     PayRequest:
       type: object
