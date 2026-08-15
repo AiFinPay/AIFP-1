@@ -24,13 +24,13 @@ AiFinPay may operate commercial implementations and settlement services, but pro
 
 | Protocol | Scope | Current AiFinPay fee profile |
 |---|---|---:|
-| **AIFP-1** | Merchant AI-traffic/resource monetization | `100/0` |
+| **AIFP-1** | Merchant AI-traffic/resource monetization | gross-inclusive `100/0` |
 | **AIFP-2/x402** | Separate x402-style agent payment route | `0/0` |
 | **AIFP-3** | Agent Passport / identity | Separate identity surface |
 
 Using HTTP `402` does not automatically make an AIFP-1 flow x402.
 
-Current AIFP-1 reference action prices are `$0.0005 / $0.002 / $0.005`.
+Current AIFP-1 reference action prices are gross payer prices `$0.0005 / $0.002 / $0.005`. The 1% AiFinPay fee is deducted from gross; it is not added on top. Merchant receives 99% of gross before external network/settlement costs.
 
 ## 3. Governance Mechanism
 
@@ -41,7 +41,7 @@ At minimum, review should answer:
 - what problem is being solved;
 - which protocol/route is affected;
 - whether wire/API behavior changes;
-- whether economics change;
+- whether economics or gross-vs-net semantics change;
 - compatibility/migration impact;
 - security impact;
 - implementation/test impact;
@@ -52,19 +52,25 @@ The actual repository maintainers/owners are responsible for merging changes. Th
 
 ## 4. Economic Governance
 
-Economic changes are high-impact protocol changes because stale examples can cause incorrect payments.
+Economic changes are high-impact protocol changes because stale examples or ambiguous gross/net semantics can cause incorrect payments.
 
 Current AIFP-1 baseline:
 
 ```text
-standard: $0.0005/action
-complex:  $0.002/action
-premium:  $0.005/action
+standard gross: $0.0005/action
+complex gross:  $0.002/action
+premium gross:  $0.005/action
+payer_total_amount = gross_amount
 treasuryBps: 100
 creatorBps:  0
+protocol_fee_amount = 1% of gross
+merchant_amount = 99% of gross
+creator_amount = 0
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+fee-on-top: not permitted
 ```
 
-A proposal changing those values should update the entire dependency chain: RFC, economics, OpenAPI, schemas, examples, SDK/backend route policy, contract/deployment profile, and conformance evidence.
+A proposal changing any of those values or semantics should update the entire dependency chain: RFC, economics, OpenAPI, schemas, examples, SDK/backend route policy, contract/deployment profile, discovery metadata, CI/conformance evidence, and migration notes.
 
 ## 5. Network Governance
 
@@ -76,6 +82,7 @@ Useful states are:
 - source/deployment provenance known;
 - canonical target identified;
 - supported asset/decimals known;
+- gross-vs-net settlement semantics verified;
 - verifier ready;
 - SDK/backend ready;
 - E2E verified;
@@ -93,16 +100,19 @@ AIFP-1 conformance should test, at minimum:
 ### Merchant role
 
 - returns an AIFP-1 `402` for paid access;
+- advertises the current gross payer price rather than merchant net;
 - does not mislabel AIFP-1 as x402;
 - verifies receipt signature/claims;
-- enforces scope/amount/quota/replay rules;
+- enforces scope/gross-amount/quota/replay rules;
 - fails closed.
 
 ### Agent/SDK role
 
 - detects AIFP-1 separately from AIFP-2/x402;
-- validates current `100/0` quote economics;
-- enforces budget before signing;
+- validates current gross-inclusive `100/0` quote economics;
+- checks `payer_total_amount = gross_amount` and exact 99/1/0 conservation;
+- rejects fee-on-top routes before signing;
+- enforces budget against gross before signing;
 - uses the canonical route;
 - submits settlement reference for verification;
 - does not duplicate payment on retries.
@@ -110,15 +120,16 @@ AIFP-1 conformance should test, at minimum:
 ### Settlement/verifier role
 
 - validates actual chain/rail evidence;
-- validates merchant/asset/amount/payment binding;
-- validates current economic profile;
+- validates merchant/asset/gross amount/payment binding;
+- validates current 99/1/0 economic profile and conservation;
 - does not issue receipt before successful verification;
-- refuses unsupported routes before payment.
+- refuses unsupported or fee-on-top routes before payment.
 
 ### Financial/reconciliation role
 
-- records merchant/treasury/creator amounts distinctly;
+- records gross/merchant/treasury/creator amounts distinctly;
 - detects creator amount above zero on current AIFP-1;
+- detects payer total different from gross, fee-on-top, or conservation mismatch;
 - detects route/profile mismatch;
 - handles duplicate/finality/reorg corrections as appropriate.
 
@@ -126,9 +137,9 @@ AIFP-1 conformance should test, at minimum:
 
 Until a formal public certification program exists, prefer evidence-based statements such as:
 
-- "passes repository conformance tests for AIFP-1 quote/receipt flow";
+- "passes repository conformance tests for AIFP-1 gross quote/receipt flow";
 - "Polygon AIFP-1 route E2E verified at commit/deployment X";
-- "SDK supports AIFP-1 `100/0` on the listed verified routes".
+- "SDK supports gross-inclusive AIFP-1 `100/0` on the listed verified routes".
 
 Avoid an official-looking "AIFP Certified" badge/registry unless a real certification process has been created and is operating.
 
