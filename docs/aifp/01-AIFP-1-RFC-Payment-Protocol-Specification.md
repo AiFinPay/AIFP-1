@@ -79,6 +79,7 @@ A conforming AIFP-1 implementation MUST preserve these invariants:
 8. **Exact arithmetic.** Monetary values MUST use integer minor units or exact decimal representations, not binary floating point.
 9. **Deployment does not imply payment-live.** A network/contract address alone is insufficient evidence that an AIFP-1 route is safe to quote.
 10. **Historical economics are not active economics.** Legacy `100/1`, fee-on-top AIFP-1 semantics, or earlier price examples MAY be retained as audit evidence only when clearly marked legacy/superseded.
+11. **Pre-payment policy cannot become a post-payment receipt veto.** Budget/policy and quote-validity decisions MUST be resolved before a new settlement is authorized or initiated. A valid settlement matching an already-issued payable quote MUST NOT lose its receipt entitlement solely because a budget threshold is discovered or wall-clock verification occurs after quote expiry.
 
 ---
 
@@ -194,6 +195,16 @@ Before returning a payable quote, the quote service MUST determine that the rout
 
 If the verifier is unavailable, unsupported, stale, or unable to validate the quoted contract/profile, the service MUST fail **before payment** rather than issuing a quote that could strand payer funds without a receipt.
 
+### 6.4 Budget, policy, and quote expiry
+
+Payer/account budget and spend-policy checks MUST be resolved before signing/broadcasting. A budget rejection MAY be returned by the quote/policy layer or locally by the payer SDK/wallet, but MUST NOT be introduced later as a reason to deny receipt for a valid settlement matching an already-issued payable quote.
+
+`expires_at` is an authorization boundary for **starting a new settlement**. A client MUST NOT initiate a new settlement using an expired quote.
+
+Where the selected rail or settlement contract can bind expiry atomically, it SHOULD enforce that validity before value transfer. A payment-live route SHOULD avoid designs in which funds can move and only afterwards be declared invalid solely because the quote expired.
+
+If a settlement matching the quote already succeeded, the later `/v1/pay` request time or receipt-processing time MUST NOT by itself be used to deny receipt. The verifier SHOULD evaluate authoritative settlement/authorization timing evidence when the rail exposes it. If reliable pre-transfer expiry enforcement or timing evidence is unavailable, that limitation MUST be part of the route's risk/readiness assessment; the service MUST NOT manufacture a payer-loss condition by treating delayed verification alone as proof that a previously successful matching settlement is invalid.
+
 ---
 
 ## 7. Settlement
@@ -203,12 +214,13 @@ If the verifier is unavailable, unsupported, stale, or unable to validate the qu
 The preferred AIFP-1 crypto flow is non-custodial:
 
 1. quote is issued;
-2. payer wallet constructs and signs the settlement transaction locally;
-3. payer broadcasts the transaction;
-4. payer receives a settlement reference/transaction hash;
-5. payer submits the quote identifier plus settlement reference to AiFinPay;
-6. AiFinPay independently verifies settlement;
-7. only then is a receipt issued.
+2. payer policy validates budget, route, economics, and quote validity before signing;
+3. payer wallet constructs and signs the settlement transaction locally;
+4. payer broadcasts the transaction;
+5. payer receives a settlement reference/transaction hash;
+6. payer submits the quote identifier plus settlement reference to AiFinPay;
+7. AiFinPay independently verifies settlement;
+8. only then is a receipt issued.
 
 The protocol does not require the payer to expose a private key or recovery phrase to AiFinPay.
 
@@ -268,9 +280,12 @@ For on-chain settlement, the verifier MUST check as applicable:
 - exact conservation: `merchant + protocol fee + creator = gross`;
 - expected `quote_id`, order ID, payment ID, nonce, or equivalent binding;
 - selected route economics are AIFP-1 gross-inclusive `100/0`;
+- quote-validity/authorization evidence where the selected rail exposes it;
 - the settlement has not already been consumed for another receipt.
 
 A verifier MUST NOT pass merely because an RPC call succeeded or because a transaction hash exists.
+
+A verifier also MUST NOT reject an otherwise valid matching settlement solely because budget/policy evaluation or `/v1/pay` processing occurs after payment, or because the later verification timestamp is after quote expiry. Post-payment decisions must be based on settlement validity, finality, quote binding, route economics, replay/idempotency, and any authoritative validity evidence available from the selected rail.
 
 ### 8.2 Unsupported routes
 
@@ -341,6 +356,8 @@ Merchants MAY provide free requests or allowlists before requiring payment.
 
 Free-tier identity MUST NOT rely solely on a caller-controlled header such as `AIFP-Agent-Id`; otherwise an agent can rotate identifiers to reset quota. A production implementation SHOULD bind durable quota/policy to a stronger authenticated agent, wallet, session, credential, or equivalent identity mechanism appropriate to the integration.
 
+Paid-spend budget/policy decisions belong before settlement authorization/signing. They MUST NOT be evaluated post-settlement in a way that strands valid payer funds without the receipt entitlement created by a matching payable quote.
+
 ---
 
 ## 12. Idempotency And Replay Protection
@@ -352,8 +369,12 @@ Required behavior includes:
 - duplicate settlement consumption does not create a second receipt entitlement;
 - retries of the same idempotent request return the same logical result or a deterministic conflict;
 - cross-merchant and cross-resource receipt reuse fails;
-- expired quotes/receipts fail;
+- an expired quote cannot authorize a **new** settlement;
+- an already-successful matching settlement remains reconcilable according to Section 6.4 rather than being rejected solely because verification happens after quote expiry;
+- expired receipts fail according to the active receipt profile;
 - settlement identifiers are unique in the financial ledger/reconciliation layer.
+
+After an ambiguous transport/process failure where a broadcast may already have occurred, the client MUST reconcile the existing quote/payment/transaction identity before authorizing another spend.
 
 ---
 
@@ -368,15 +389,21 @@ Recommended classes:
 | `400` | malformed request |
 | `401` | missing/invalid API authentication where applicable |
 | `402` | AIFP-1 payment required |
-| `403` | policy or receipt authorization failure |
+| `403` | pre-payment budget/policy restriction, or receipt authorization failure on protected access |
 | `409` | replay/idempotency/duplicate conflict |
-| `410` | quote no longer valid |
+| `410` | quote no longer authorizes a new settlement under its validity rules |
 | `422` | settlement/receipt/economic split mismatch |
 | `425` | settlement observed but not sufficiently final |
 | `429` | rate/policy limit |
 | `5xx` | service/route unavailable; MUST NOT imply payment success |
 
 An implementation MUST distinguish **pending** settlement from **invalid** settlement.
+
+`403` budget/policy rejection MUST occur before signing/broadcasting. `/v1/pay` MUST NOT use a newly discovered budget threshold as the sole reason to deny a receipt for an otherwise valid settlement matching an already-issued payable quote.
+
+`410` MUST NOT be returned solely because `/v1/pay`, finality, or receipt processing happens after `expires_at`. Quote expiry prevents initiating a new settlement; successful matching settlements are handled according to the validity rules in Section 6.4. Where a selected settlement mechanism can enforce expiry atomically, it SHOULD reject before funds move.
+
+A `5xx` after a possible or confirmed broadcast MUST lead the client to reconcile/retry verification of the **same** settlement reference before any replacement payment is considered.
 
 ---
 
@@ -391,6 +418,7 @@ For each payment-live chain/route, implementations SHOULD maintain a canonical r
 - economic profile and gross-vs-net semantics;
 - supported assets and decimals;
 - verifier capability;
+- quote-expiry enforcement/timing capability where relevant;
 - activation/review status.
 
 A legacy fee-bearing splitter or historical deployment MUST NOT be automatically selected for new AIFP-2 traffic and MUST NOT be presented as current AIFP-1 gross-inclusive `100/0` unless its actual deployed behavior matches the 99/1 fee-from-gross profile.
@@ -405,6 +433,7 @@ A canonical ledger entry SHOULD record enough information to reconcile:
 
 - route class;
 - quote/payment/receipt IDs;
+- quote validity/expiry metadata where required for settlement reconciliation;
 - gross payer amount;
 - merchant amount;
 - AiFinPay fee amount;
@@ -425,6 +454,8 @@ creator_amount = 0
 ```
 
 Any fee-on-top result is an AIFP-1 economics mismatch.
+
+A verifier outage, delayed finality, or delayed `/v1/pay` call MUST NOT cause the system to forget or replace a settlement that may already have moved value. Reconciliation must preserve the original settlement identity until it reaches a deterministic valid/invalid/finality outcome.
 
 ---
 
@@ -475,6 +506,7 @@ A conforming implementation SHOULD address at minimum:
 - cross-resource/cross-merchant reuse;
 - SSRF in hosted gateway/upstream configurations;
 - quote manipulation;
+- post-payment budget/expiry denial that can strand valid payer funds;
 - gross/net/fee semantic mismatch;
 - token decimal mismatch;
 - route/registry drift;
@@ -503,9 +535,12 @@ A conformance evidence bundle SHOULD include:
 6. successful real or appropriately isolated end-to-end flow:
    - protected request;
    - AIFP-1 `402`;
+   - pre-payment budget/policy approval against gross;
    - binding quote with explicit gross, merchant, protocol-fee, and creator amounts;
+   - expired quote rejected before initiating a new settlement;
    - payer settlement equal to the quoted gross amount;
-   - verifier confirmation;
+   - verifier confirmation using the same settlement reference through pending/retry states;
+   - no receipt denial solely because budget or wall-clock verification occurs after a valid settlement;
    - merchant amount exactly 99% of gross under the selected asset/base-unit arithmetic;
    - AiFinPay fee exactly 1% of gross;
    - creator/referral amount zero;
@@ -533,6 +568,8 @@ Historical documents, transaction evidence, or deployment manifests MAY retain t
 
 New AIFP-1 guidance MUST use `$0.0005 / $0.002 / $0.005`, gross-inclusive `100/0`, and the 99/1 split defined in this RFC.
 
+Historical interface behavior that applied `AIFP-403-BUDGET-EXCEEDED` at `/v1/pay` after payer settlement is also superseded. Current budget/policy rejection is pre-payment only.
+
 ---
 
 ## 21. Machine-Readable Contracts
@@ -545,7 +582,7 @@ The machine-readable surfaces of this repository must remain consistent with thi
 - SDK/reference examples;
 - `.well-known` discovery metadata where present.
 
-A CI/conformance check SHOULD fail when active documentation reintroduces superseded economics, fee-on-top AIFP-1 semantics, or ambiguous use of the reference tier as `merchant_amount` outside explicitly historical sections.
+A CI/conformance check SHOULD fail when active documentation reintroduces superseded economics, fee-on-top AIFP-1 semantics, ambiguous use of the reference tier as `merchant_amount`, or post-payment policy semantics that can strand a valid matching settlement.
 
 ---
 
@@ -553,16 +590,16 @@ A CI/conformance check SHOULD fail when active documentation reintroduces supers
 
 Changes to normative AIFP-1 behavior SHOULD be proposed and reviewed through the repository's AIP/governance process.
 
-Economic changes require explicit approval and coordinated updates to:
+Economic or payer-loss-sensitive lifecycle changes require explicit review and coordinated updates to:
 
 - normative RFC;
-- economics document;
+- economics document when economics are affected;
 - OpenAPI/schemas/examples;
-- SDK/backend route policy;
-- contract/deployment profile;
+- SDK/backend route and policy logic;
+- contract/deployment profile where settlement semantics are affected;
 - tests/conformance evidence.
 
-No single stale example may override the current canonical economics.
+No single stale example may override the current canonical economics or lifecycle safety rules.
 
 ---
 
@@ -577,8 +614,12 @@ A current AIFP-1 implementation MUST, at minimum:
 - ensure payer settlement amount equals gross quoted amount, not gross plus a protocol fee;
 - derive merchant amount as 99% of gross and AiFinPay amount as 1% of gross under exact asset/base-unit arithmetic;
 - keep creator/referral amount at zero;
+- resolve budget/policy and quote-validity decisions before initiating a new settlement;
+- never deny receipt for an otherwise valid matching settlement solely because a budget threshold is discovered after payment;
+- never use the later verification time alone as the reason to reject an otherwise valid matching settlement after quote expiry;
 - verify settlement before receipt issuance;
 - fail before payment when the selected settlement route cannot be verified;
+- reconcile the same settlement reference across pending/verifier-unavailable states before any replacement payment;
 - bind payment/receipt to merchant and resource/scope;
 - use exact monetary arithmetic;
 - reject replay/duplicate settlement consumption;
@@ -615,3 +656,5 @@ AIFP-2/x402
 ## Appendix C — Change Note
 
 **2026-08-15:** Canonical AIFP-1 RFC realigned with the founder-approved August 14 economic model and clarified as strictly gross-inclusive. The AIFP-1 displayed/quoted action price is the gross payer amount; 1% AiFinPay is deducted from gross and the merchant receives 99%. Fee-on-top AIFP-1 semantics, superseded microcent tiers, and the old `100/1` creator-fee profile are not current AIFP-1 guidance. AIFP-2/x402 remains explicitly separated as a `0/0` route profile.
+
+**2026-08-15 lifecycle safety audit:** Budget/policy and quote-expiry decisions were made explicitly pre-payment. `/v1/pay` is a post-payment settlement-verification endpoint and cannot use a newly discovered budget threshold or delayed verification timestamp as a standalone reason to strand a valid matching settlement without its receipt entitlement. Pending/verifier-unavailable states must reconcile the same settlement reference before any replacement payment.
