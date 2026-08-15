@@ -1,138 +1,149 @@
-# AIFP Branding & Style Guidelines
+# AIFP-1 Branding & Editorial Guidelines
 
-**Document:** AIFP-DOC-13 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
+**Document:** AIFP-DOC-13  
+**Status:** Active repository style guidance
 
-> These guidelines govern the visual and editorial identity of **AiFinPay** and the
-> **AiFinPay Paywall Protocol (AIFP)** across docs, code, packages, and the developer
-> portal. The aesthetic is **enterprise-grade, infrastructure-first, technical but
-> clean** — Stripe / Ramp / Anthropic vibe, not crypto manifesto.
+These guidelines govern naming and editorial consistency for the AIFP-1 protocol repository. They do not define visual identity for every AiFinPay product.
 
----
+## 1. Naming
 
-## 1. Naming Convention (normative)
+| Subject | Preferred form |
+|---|---|
+| Company | **AiFinPay** |
+| Protocol | **AIFP-1** |
+| Description | **merchant AI-traffic/resource monetization protocol** |
+| Related agent-payment protocol | **AIFP-2/x402** |
+| Identity protocol | **AIFP-3 / Agent Passport** |
+| Improvement proposal | **AIP** |
 
-| Use | Correct | Incorrect |
-|---|---|---|
-| Company | **AiFinPay** | AIFinPay, Aifinpay, AI FinPay |
-| Protocol (full) | **AiFinPay Paywall Protocol** | AI Paywall Protocol |
-| Protocol (abbr) | **AIFP** | aifp (in prose), AiFP |
-| Spec | **AIFP-1** | AIFP1, AIFP 1.0 (use "AIFP-1 v1.0.0") |
-| Proposal | **AIP** (AiFinPay Improvement Proposal) | EIP, AIFP-IP |
+Rules:
 
-**Rules:** "AIFP" is always uppercase in prose. The first mention in any document SHOULD
-expand to "AiFinPay Paywall Protocol (AIFP)". Never refer to AIFP as a token or coin —
-**AIFP is tokenless**.
+- write `AIFP-1`, not `AIFP1`;
+- do not call every HTTP `402` interaction x402;
+- do not describe AIFP-1 and AIFP-2 as one fee profile;
+- do not describe a draft specification as production-ready merely because it is documented;
+- avoid implying that a network is payment-live merely because a contract was deployed.
 
----
+## 2. Current Economic Terminology
 
-## 2. Logo Usage
+Current AIFP-1 reference values:
 
-- **Primary mark:** the AiFinPay globe/network glyph + "AiFinPay" wordmark.
-- **Clear space:** ≥ the height of the "A" in the wordmark on all sides.
-- **Minimum size:** 24px height (digital), 12mm (print).
-- **Variants:** full-color on light, full-color on dark, monochrome (black), reverse
-  (white). Use the highest-contrast variant for the background.
-- **Don'ts:** don't recolor, stretch, rotate, add effects/shadows, place on busy imagery,
-  or recreate the wordmark in a different typeface.
+| Item | Current value |
+|---|---:|
+| Standard | `$0.0005` |
+| Complex | `$0.002` |
+| Premium | `$0.005` |
+| AiFinPay protocol fee | `1%` / `100` bps |
+| Creator/referral fee | `0` bps |
+| Merchant amount | `99%` before external network/settlement costs |
 
----
+AIFP-2/x402 uses `0/0` AiFinPay fees.
 
-## 3. Color Palette
+Old microcent prices and `100/1` belong only in clearly marked historical/superseded sections.
 
-| Token | Hex | Use |
-|---|---|---|
-| **Primary Blue** | `#2F5FD6` | Brand accent, links, primary buttons, code highlights |
-| Royal Blue (alt) | `#2563EB` | Diagrams, gradients, secondary accent |
-| Ink (near-black) | `#0B1020` | Headlines, body on light |
-| Slate | `#475569` | Secondary text |
-| Mist | `#F4F6FB` | Surfaces / cards on light |
-| Border | `#E2E8F0` | Hairlines, dividers, card borders |
-| Surface Dark | `#0E1424` | Dark-mode background |
-| Success | `#16A34A` | "Live / Done" states |
-| Warning | `#D97706` | Caution, deprecations |
-| Danger | `#DC2626` | Errors (`AIFP-4xx/5xx`) |
+## 3. Money Formatting
 
-**Usage rule:** one dominant accent (Primary Blue). Avoid rainbow palettes. Status colors
-only for status.
+- Use decimal strings in API/JSON examples: `"0.0005"`, not floating-point literals when exactness matters.
+- For on-chain amounts, document token base units and decimals explicitly.
+- Never round away a fee/profile mismatch in security-sensitive examples.
+- Distinguish merchant amount, AiFinPay fee, creator/referral amount, total payer amount, and network gas where applicable.
 
----
+## 4. Protocol Terminology
 
-## 4. Typography
+Use these terms consistently:
 
-| Role | Family | Notes |
-|---|---|---|
-| Headlines | Inter / Helvetica Neue | Tight tracking; uppercase for section labels |
-| Body | Inter / system-ui | 16px base, 1.6 line-height |
-| Mono / code | JetBrains Mono / SF Mono | Code, IDs (`rcpt_*`), endpoints |
+- **AIFP-1 challenge** — merchant payment-required message using HTTP `402`;
+- **binding quote** — authoritative pre-payment merchant/resource/route/amount statement;
+- **settlement reference / `tx_ref`** — evidence submitted after payer execution;
+- **settlement verifier** — component that checks the actual chain/rail evidence;
+- **receipt** — signed paid-access authorization issued after verified settlement;
+- **route class** — AIFP-1 or AIFP-2/x402;
+- **payment-live** — route with approved current implementation/evidence, not merely deployed.
 
-**Hierarchy:** H1 bold ink; H2 with a left **Primary Blue** bar; uppercase blue labels for
-eyebrows; generous whitespace; no center-justified body text.
+Do not use "x402 challenge" as a synonym for AIFP-1 challenge.
 
----
+## 5. Status Language
 
-## 5. Iconography
+Preferred status labels:
 
-- Line icons, 1.5–2px stroke, rounded joins, `currentColor` (Lucide / Heroicons style).
-- **No emoji in normative docs, decks, or diagrams** — use inline SVG icons instead
-  (lesson from the Casper deck: emoji render as tofu in headless rendering).
-- Icon sizing relative to text (`width: 1em`) so they inherit color and scale.
+- `Draft specification`
+- `Experimental`
+- `Reference implementation`
+- `Verified deployment`
+- `Verifier-ready`
+- `E2E verified`
+- `Payment-live`
+- `Legacy / historical / superseded`
 
----
+Use `production-ready` only when the relevant implementation has explicitly passed the release gate for that claim.
 
-## 6. Code Style (across SDKs & samples)
+## 6. Documentation Voice
 
-- **Indent:** 2 spaces (JS/TS/JSON/YAML), 4 spaces (Python), gofmt (Go), rustfmt (Rust).
-- **Quotes:** double in JSON; language-idiomatic elsewhere.
-- **IDs in examples:** always the canonical prefixes — `mrch_`, `agt_`, `wlt_`, `qt_`,
-  `rcpt_`, `pp_` — and the same sample values across docs (`mrch_9f3a1c2b`, `wlt_3a1b`,
-  `qt_8d21f0`, `rcpt_7b3e9f21`, `agt_4f9a2c7e`).
-- **Amounts:** decimal **strings** in USD (`"0.00001"`), never floats.
-- **Lint:** every code sample must pass CI checks against OpenAPI (Doc 08) + JSON Schemas
-  (Doc 10).
+- precise and technical;
+- active voice;
+- claims should be evidence-backed;
+- distinguish target architecture from deployed implementation;
+- avoid exaggerated scale/latency/security claims without measured evidence;
+- avoid invented partnerships, approvals, benchmarks, package availability, or chain support.
 
----
+Normative `MUST / SHOULD / MAY` language should be reserved for normative or clearly designated specification/security/governance sections.
 
-## 7. Documentation Style
+## 7. Code And Example Style
 
-- **Voice:** precise, calm, infrastructure-grade. Active voice. Short sentences.
-- **Normative language:** RFC 2119 keywords (MUST / SHOULD / MAY) only in normative docs
-  (01, 04, 06).
-- **Terminology:** use the canonical glossary (AIFP-1 Appendix A); never invent synonyms
-  (it's a "receipt", not a "token receipt" or "payment proof token").
-- **Numbers/invariants:** pricing, fees, TTLs, and network counts must match the canonical
-  values everywhere (see Synchronization, Doc README).
-- **No marketing fluff in reference docs.** Sell in the Whitepaper (05); explain in the rest.
+- JSON/YAML/JS/TS: 2-space indentation where compatible with the existing file/tooling.
+- Python: 4 spaces.
+- Use obvious placeholders for IDs, addresses, keys, hashes, and secrets.
+- Never include real private keys, mnemonics, API secrets, merchant origin secrets, or production signing material.
+- Examples should match the OpenAPI and JSON schema surfaces where they represent protocol objects.
 
----
+Example AIFP-1 quote fragment:
 
-## 8. Repository Naming
+```json
+{
+  "route_class": "AIFP-1",
+  "pricing_tier": "standard",
+  "merchant_amount": "0.0005",
+  "treasury_bps": 100,
+  "creator_bps": 0
+}
+```
 
-- Org: `github.com/aifinpay`.
-- Pattern: `aifp-<area>` for protocol artifacts, `<lang>` clarity for SDKs.
-- Examples: `aifp` (RFC/spec), `aifp-go`, `aifinpay-python`, `merchant-js`, `agent-js`,
-  `docs`, `examples`, `openapi`, `schemas`, `conformance`. Full map in Doc 15.
+## 8. Cross-Protocol Links
 
----
+When AIFP-1 documentation needs identity or x402 functionality, link to the separate protocol rather than copying its normative wire format into AIFP-1.
 
-## 9. Package Naming
+Examples:
 
-| Ecosystem | Pattern | Example |
-|---|---|---|
-| npm | `@aifinpay/<pkg>` | `@aifinpay/agent`, `@aifinpay/merchant` |
-| PyPI | `aifinpay-<pkg>` | `aifinpay-agent` |
-| Go | `github.com/aifinpay/aifp-go` | module path |
-| crates.io | `aifinpay` | crate |
-| Maven | `io.aifinpay:aifp` | group:artifact |
-| Packagist | `aifinpay/aifp` | vendor/package |
-| NuGet | `AiFinPay` | package id |
+- "For x402 agent-payment support, see AIFP-2/x402."
+- "For portable agent identity, see AIFP-3 / Agent Passport."
 
----
+## 9. Package And Repository Naming
 
-## 10. Versioning Rules
+Only name a package as available when verified against its actual repository/package registry. Do not maintain speculative language matrices in AIFP-1 as if they were published products.
 
-- **SemVer** `MAJOR.MINOR.PATCH` for the protocol, SDKs, and schemas (see Doc 06 §5).
-- Docs are versioned with the protocol MAJOR.MINOR; the portal exposes a version selector.
-- Receipt `kid` is date-stamped (`aifp-2026-06`) and rotated; old `kid`s remain
-  resolvable for receipt TTL windows.
-- Breaking changes require an AIP, a deprecation window, and ≥12 months of previous-MAJOR
-  support.
+Repository links should use the current AiFinPay organization/repository names rather than deprecated naming.
+
+## 10. Visual Style
+
+For documentation visuals:
+
+- favor clear system diagrams over decorative crypto imagery;
+- use accessible contrast;
+- keep diagrams readable in light and dark environments;
+- avoid status colors that imply `live`/`verified` unless that status is true;
+- keep protocol diagrams focused on data/payment flow and trust boundaries.
+
+## 11. Synchronization Rule
+
+When economics or route semantics change, update together:
+
+1. AIFP-1 RFC;
+2. economics document;
+3. OpenAPI;
+4. JSON schemas;
+5. Postman/examples;
+6. SDK reference/guides;
+7. README/portal pages;
+8. changelog/migration note.
+
+Contradictory active examples are treated as defects, not harmless documentation drift.

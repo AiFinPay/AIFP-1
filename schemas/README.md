@@ -16,11 +16,11 @@ Every price-bearing schema should model action pricing as a tiered micropayment 
 
 | Tier | Minimum amount | Intended use |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple reads, single-record retrieval, lightweight API requests. |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, and higher-compute requests. |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, and premium data. |
+| `standard` | `$0.0005` | Simple reads, single-record retrieval, lightweight API requests. |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, and higher-compute requests. |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, and premium data. |
 
-Successful transactions apply the AiFinPay Protocol Fee of `1%`; the remaining `99%` settles to the merchant, excluding applicable payment-network or settlement costs.
+For the current AIFP-1 merchant-monetization profile, successful monetized transactions apply an AiFinPay Protocol Fee of exactly `1%` (`100` bps), with creator/referral fee `0` bps. The merchant receives `99%` before applicable payment-network or settlement costs. AIFP-2/x402 is a separate `0/0` route profile.
 
 ## Validation Targets
 

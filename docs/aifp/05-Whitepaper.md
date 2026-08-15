@@ -1,467 +1,254 @@
-# AiFinPay Paywall Protocol (AIFP) — Whitepaper
+# AiFinPay AIFP-1 — Whitepaper
 
-**The Payment Layer for the Autonomous AI Economy**
+**A Merchant Monetization Layer for the Agent Economy**
 
-**Document:** AIFP-DOC-05 · **Version:** 1.0.0 · **Date:** 2026-06-28
-**Audience:** Investors · Enterprises · Partners · Foundations · Grant Committees
-**Status:** Public Release · **Governed by:** AIFP-1 (Doc 01, normative)
+**Document:** AIFP-DOC-05  
+**Status:** Public draft  
+**Updated:** August 15, 2026  
+**Governed by:** [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
 
----
-
-## Table of Contents
-
-1. Executive Summary
-2. Vision
-3. The AI Economy
-4. Market Opportunity
-5. The Problem
-6. The Solution
-7. Architecture Overview
-8. Protocol Overview
-9. Merchant Benefits
-10. AI Agent Benefits
-11. Technical Innovation
-12. Competitive Analysis
-13. Business Model
-14. Tokenless Architecture
-15. Multi-Chain Strategy
-16. Future Roadmap
-17. Ecosystem Growth
-18. Conclusion
-19. Appendix — Glossary & References
-
----
+This whitepaper explains the purpose and design direction of AIFP-1. It is descriptive, not a production-readiness attestation, regulatory approval, investment offer, or guarantee of adoption/revenue.
 
 ## 1. Executive Summary
 
-The internet was built for humans clicking through pages. The next internet will be
-driven by **software agents** that read, reason, and act on our behalf — booking,
-buying, researching, and transacting autonomously. These agents already consume APIs,
-data, and compute at machine speed. But they cannot **pay** for any of it the way a
-human can. Credit cards assume a cardholder. Checkout flows assume a browser. OAuth
-assumes a login. The entire payment stack assumes a person.
+AI agents increasingly consume websites, APIs, data, compute, and digital services directly. The human web monetizes attention through advertising and long-lived subscriptions; autonomous software often needs a different model: machine-readable access, explicit pricing, programmatic budgets, and payment tied to the resource being requested.
 
-**AiFinPay** closes that gap. The **AiFinPay Paywall Protocol (AIFP)** is an open,
-HTTP-402-native payment standard that lets any web service charge an AI agent **per
-request** and lets any agent **pay autonomously** — in stablecoins or hybrid fiat —
-with cryptographic proof and no human intervention.
+**AIFP-1** is AiFinPay's merchant AI-traffic monetization protocol profile. It uses HTTP `402 Payment Required` to tell an agent that a protected resource requires payment, then uses a binding quote, payer-executed settlement, settlement verification, a signed receipt, and a paid retry.
 
-AIFP does three things no existing rail does together:
+The core loop is:
 
-1. **Activates HTTP 402.** It turns the long-reserved "Payment Required" status code
-   into a real, machine-readable payment challenge — the missing primitive of the web.
-2. **Settles verifiably.** Payments settle on-chain or through hybrid fiat/stablecoin
-   rails and produce a signed **Ed25519 receipt** that a merchant verifies
-   **locally and statelessly** in microseconds — no callback, no database lookup.
-3. **Stays tokenless and neutral.** AIFP has **no native token**. It charges a standard,
-   transparent fee (0.3–1%, volume-tiered) on top of standard stablecoins. It is
-   infrastructure, not a speculative asset.
+`request → AIFP-1 402 → quote → settlement → verification → receipt → retry`
 
-AIFP-1 defines support for **12 blockchain networks**, accepts **USDC / USDT / PYUSD**,
-and is compatible with the emerging **x402** ecosystem. It is designed as an open
-payment layer for machine-to-machine commerce, where software can discover priced
-resources, pay within policy, and receive verifiable access.
+AIFP-1 is separate from **AIFP-2/x402**, the agent-payment route profile. The protocols can coexist in the same ecosystem but use different economic profiles and must not be conflated.
 
-This whitepaper explains **why** the protocol matters, **how** it works, and **where**
-it is going.
+## 2. The Problem
 
----
+A publisher, data provider, API operator, MCP server, or compute service faces a simple problem when autonomous agents arrive:
 
-## 2. Vision
+- block them and earn nothing from that traffic;
+- give the resource away;
+- force every agent into a human-oriented signup/subscription flow;
+- build a custom API billing relationship with every consumer;
+- or provide a machine-native way to price and pay for access.
 
-> **A world where any agent can pay any service, instantly, safely, and without a human.**
+AIFP-1 is aimed at the fifth option.
 
-Every major platform shift produces a new payment primitive. E-commerce needed online
-card processing. Mobile needed in-app purchases and wallets. The **agentic web** needs
-something neither of those can provide: a way for **non-human principals** to discover a
-price, authorize a payment within policy, settle value, and prove they paid — all in a
-single sub-second round trip, billions of times a day.
+The goal is not to claim that every automated request should be charged. Merchants can define free access, paid access, allowlists, blocked traffic, subscriptions, API purchases, or enterprise contracts alongside AIFP-1.
 
-AiFinPay's vision is to be that primitive. Not a wallet app, not an exchange, not a
-chain — a **protocol**: an open, neutral, boring-in-the-best-way standard that other
-people build businesses on top of. Our north star is adoption as a **standard**, the
-same way HTTP, TLS, and OAuth are standards: ubiquitous, invisible, and assumed.
+## 3. Current AIFP-1 Economics
 
-When AIFP succeeds, "the agent paid for it" becomes as unremarkable as "the page loaded
-over HTTPS."
+Current reference action tiers:
 
----
+| Tier | Reference action price | Example workload |
+|---|---:|---|
+| `standard` | `$0.0005` | Simple read / lightweight API action |
+| `complex` | `$0.002` | Search / aggregation / higher-compute action |
+| `premium` | `$0.005` | AI inference / GPU / premium data action |
 
-## 3. The AI Economy
+Current merchant-monetization fee profile:
 
-We are entering an economy where the **buyer is software**. Three structural shifts make
-agent payments inevitable:
-
-**3.1. Agents are becoming primary API consumers.** LLM-driven agents now orchestrate
-dozens of tool calls per task — search, retrieval, code execution, data enrichment,
-image generation. Each call has a cost. Today those costs are bundled into flat
-subscriptions or eaten by providers. That breaks at scale.
-
-**3.2. Value is metered, not bundled.** As agents fan out across thousands of
-specialized services, flat pricing collapses. The natural unit becomes the **individual
-request**, priced by pricing_tier. Per-call micropayments — fractions of a cent — become
-the dominant transaction shape. Human payment rails physically cannot process a USD 0.00001
-charge profitably; interchange alone exceeds the price.
-
-**3.3. Autonomy requires delegation of spend.** An agent acting on your behalf must be
-able to spend **within bounds you set** without asking permission each time — and you
-must be able to **audit** every cent afterward. That requires programmable budgets,
-identity, and verifiable receipts at the protocol layer, not bolted on after the fact.
-
-This is the **machine economy**: millions of agents transacting with millions of
-services, autonomously, continuously, at micro-scale. It needs its own payment rail.
-That rail is AIFP.
-
----
-
-## 4. Market Opportunity
-
-The opportunity sits at the intersection of three large, fast-growing markets: the AI
-agent market, agentic commerce transaction value, and the broader programmable-payments
-/ stablecoin settlement market.
-
-| Layer | 2026 Scale | Source basis |
-|---|---|---|
-| **TAM** — AI agents market | **~$12B** | AI agents market sizing, 2026 |
-| **SAM** — agentic commerce transaction value | **~$8B** | Agentic commerce transaction value, 2026 |
-| **SOM** — serviceable obtainable (12–18 mo) | **$15–40M** | Bottom-up, AIFP-reachable volume |
-
-Beyond 2026, the directional signal is enormous: stablecoin settlement volume already
-runs in the **trillions annually**, and the share attributable to autonomous, programmatic
-transactions is compounding as agent frameworks mature. AIFP monetizes the **transaction
-itself** — a thin, volume-scaling fee — so its revenue tracks the growth of machine
-commerce rather than any single application.
-
-**Why now.** Three enablers just matured simultaneously: (a) capable tool-using agents
-(the demand side), (b) cheap, fast stablecoin settlement across many chains (the supply
-side), and (c) the revival of HTTP 402 / x402 conventions (the standard side). AIFP is
-the protocol that binds them.
-
----
-
-## 5. The Problem
-
-Autonomous agents can do almost everything online — except pay correctly. Every existing
-option fails on at least one axis:
-
-- **Credit cards / card networks.** Assume a human cardholder, a browser, 3-D Secure
-  challenges, and chargebacks. Interchange and minimums make sub-cent charges impossible.
-  No native machine identity, no per-request authorization.
-- **API keys + monthly invoices.** Work for one provider but don't compose. An agent
-  hitting 50 services needs 50 billing relationships, 50 credentials, and 50 invoices.
-  No real-time settlement, no per-call accounting, no cross-provider budget.
-- **Prepaid credits / platform wallets.** Lock value inside one platform. Non-portable,
-  non-interoperable, and opaque to the agent's owner.
-- **Raw crypto transfers.** Settle value but carry **no protocol semantics**: no price
-  discovery, no proof-of-payment tied to a specific request, no replay protection, no
-  identity, no budget enforcement. The merchant still has to build all of that.
-- **x402 alone.** Revives the 402 status code — a crucial step — but on its own lacks a
-  complete, productized stack: stateless verifiable receipts, multi-chain settlement,
-  agent identity/reputation, budgets, hybrid fiat, and onboarding.
-
-The result: there is **no standard way** for an arbitrary agent to pay an arbitrary
-service, prove it paid, and be trusted — at micro-scale, across providers, instantly.
-That missing standard is a tax on the entire agentic economy.
-
----
-
-## 6. The Solution
-
-AIFP provides the missing standard as a small, composable protocol:
-
-1. **A payment challenge over HTTP 402.** When an agent requests a paid resource and has
-   no valid receipt, the server answers `402 Payment Required` with a machine-readable
-   **Payment Challenge**: merchant, resource, price (by pricing_tier tier), accepted
-   assets/chains, a single-use nonce, and a quote URL.
-2. **A quote.** The agent calls `POST /v1/quote` to get a binding price and settlement
-   targets.
-3. **A payment.** The agent calls `POST /v1/pay` (idempotent). AIFP settles on-chain or
-   via hybrid fiat and returns an **Ed25519 JWT receipt**.
-4. **Stateless verification.** The agent retries the original request with the receipt.
-   The merchant verifies the signature **locally** and checks audience, resource, amount,
-   expiry, and nonce — then serves the resource. No callback to AiFinPay is required on
-   the hot path.
-
-Around this loop, AIFP adds the things a real economy needs: **agent identity and
-reputation (Agent Passport)**, **programmable budgets**, **idempotency and replay
-protection**, **multi-chain settlement**, **hybrid fiat**, **webhooks**, and **x402
-compatibility**. It is, in effect, the **financial operating system for autonomous AI
-commerce** — closer in spirit to payment infrastructure than to a crypto manifesto.
-
----
-
-## 7. Architecture Overview
-
-AIFP is a three-plane architecture: a thin **protocol edge** every participant speaks, a
-**settlement core** that moves value, and a **trust layer** that establishes who agents
-are and whether they can be relied upon.
-
-```
-            ┌───────────────────────────────────────────────────────────┐
-            │                       AIFP Protocol Edge                     │
-            │   HTTP 402 · Challenge · Quote · Pay · Receipt · Verify       │
-            └───────────────┬───────────────────────────┬─────────────────┘
-                            │                           │
-              ┌─────────────▼───────────┐   ┌───────────▼─────────────┐
-              │     Settlement Core      │   │       Trust Layer        │
-              │ on-chain (12 networks)   │   │ Agent Passport (pp_*)    │
-              │ stablecoin USDC/USDT/    │   │ reputation [0..1000]     │
-              │ PYUSD · hybrid fiat rails│   │ risk [0..100] · trust    │
-              │ payment splitter ·       │   │ levels · Ed25519 ID keys │
-              │ mSECCO escrow · Pyth     │   │ discovery registry       │
-              └──────────────────────────┘   └──────────────────────────┘
+```text
+AIFP-1
+  treasuryBps = 100   # 1% AiFinPay protocol fee
+  creatorBps  = 0
 ```
 
-**Stateless by design.** The single most important architectural decision is that
-**receipt verification requires no network call**. A merchant caches the AiFinPay JWKS,
-verifies the Ed25519 signature locally, and checks the claims. This makes AIFP fast
-enough to sit in the hot path of every API request and resilient even if the AiFinPay
-control plane is briefly unreachable (**degraded mode**).
+The merchant receives 99% before external network/settlement costs under the current profile.
 
----
+AIFP-2/x402 is separate:
 
-## 8. Protocol Overview
+```text
+AIFP-2
+  treasuryBps = 0
+  creatorBps  = 0
+```
 
-The normative definition lives in **AIFP-1 (Doc 01)**; this is a summary.
+The old `$0.00001 / $0.00006 / $0.00010` reference prices and a `100/1` creator-fee model are superseded current-product economics.
 
-**8.1. HTTP 402 semantics.** AIFP activates the reserved `402 Payment Required` status
-as a first-class, machine-readable response carrying a Payment Challenge. It is clearly
-distinguished from neighboring codes (`401` auth, `403` forbidden, `429` rate-limit).
+## 4. Protocol Flow
 
-**8.2. Payment Challenge.** Two forms: a compact **header form** (x402-compatible) and a
-canonical **body form** with full fields — merchant, resource, pricing_tier, amount,
-accepted assets/chains, nonce, expiry, quote URL.
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as AI Agent
+    participant M as Merchant
+    participant P as AiFinPay
+    participant R as Settlement Rail
 
-**8.3. Pricing tiers (canonical).**
+    A->>M: Request protected resource
+    M-->>A: 402 + AIFP-1 challenge
+    A->>P: Request binding quote
+    P-->>A: Merchant/resource/amount/route + 100/0 economics
+    A->>R: Sign and broadcast settlement locally
+    R-->>A: Settlement reference
+    A->>P: Submit quote + settlement reference
+    P->>R: Verify actual settlement
+    P-->>A: Signed receipt after successful verification
+    A->>M: Retry with receipt
+    M->>M: Verify receipt locally
+    M-->>A: Protected response
+```
 
-| Pricing Tier | Price (USD) |
-|---|---|
-| standard | USD 0.00001 |
-| standard | USD 0.00001 |
-| complex | USD 0.00006 |
-| premium | USD 0.00010 |
+The crypto path is intended to be non-custodial at the payer-signing layer: the payer controls its signing key and sends AiFinPay the settlement reference for verification, not the key itself.
 
-First **100 requests/month** per agent per merchant are free.
+## 5. Why Receipt Verification Matters
 
-**8.4. Receipt token.** A compact **Ed25519 (EdDSA) JWT** (or CBOR-COSE CWT for
-constrained clients). Claims bind issuer, paying agent (`sub`), merchant (`aud`),
-resource, amount, asset/chain, tx reference, receipt id, single-use nonce, issued-at,
-expiry (**default TTL 600s**), and `kid` for rotation. Verification is the 10-step
-stateless algorithm in AIFP-1 §7.4.
+A payment transaction proves that value moved somewhere. It does not by itself prove that a specific merchant resource should be unlocked.
 
-**8.5. Idempotency & replay.** `POST /v1/pay` requires an `Idempotency-Key` (24h dedupe
-window). Nonces are single-use; replay yields `409`.
+AIFP-1 therefore binds paid access through a receipt that can represent:
 
-**8.6. Fees.** Volume-tiered **1% / 1% / 1%** (cap ~1%) computed at quote time and
-itemized on the receipt.
+- merchant/audience;
+- resource or scope;
+- quote/payment binding;
+- amount or paid quota;
+- issuance and expiry;
+- replay/idempotency state;
+- route/profile metadata.
 
-**8.7. Errors.** A complete, documented registry (`AIFP-4xx/5xx`), including
-`AIFP-403-BUDGET-EXCEEDED` for budget policy breaches.
+Merchant-side verification is designed to be local where supported, so protected resource authorization does not require a synchronous callback to the payment control plane for every paid request.
 
-**8.8. Identity, reputation, budgets, discovery, streaming, negotiation, governance.**
-Extension layers (AIFP-1 §24, §10.2): Agent Passport, Merchant Discovery Registry, Dynamic
-Pricing Engine, Streaming Payments (mSECCO channels), Agent Reputation Network, Protocol
-Negotiation Layer, and Open Governance.
+## 6. Settlement Safety
 
----
+AIFP-1's security model requires the system to answer one question before telling an agent to pay:
 
-## 9. Merchant Benefits
+> Can the selected settlement route be independently verified against this quote?
 
-- **Monetize agent traffic you currently give away.** Charge per request instead of
-  hoping agents convert to a subscription. Sub-cent pricing finally works.
-- **Drop-in integration model.** Middleware and framework integration patterns are
-  documented in Doc 02.
-- **Stateless, microsecond verification.** No callback, no added latency, no dependency
-  on AiFinPay being reachable on the hot path.
-- **Settlement rail choice.** Stablecoin payout or hybrid fiat/stablecoin settlement
-  through regulated rails; payment splitter for revenue sharing.
-- **Built-in fraud resistance.** Single-use nonces, signed receipts, idempotency, and
-  agent reputation reduce abuse without chargebacks.
-- **No platform lock-in.** AIFP is an open standard; merchants keep their customers, keys,
-  and payout addresses.
+If the answer is no, the route must fail before payment.
 
----
+A receipt must not be issued merely because a client supplied a transaction hash. The verifier should confirm the chain/rail, contract/program, merchant recipient, token/asset, amount, quote/payment binding, finality, and current `100/0` economics as applicable.
 
-## 10. AI Agent Benefits
+This prevents the failure mode in which the payer sends funds but the receipt service later discovers that it cannot interpret the transaction.
 
-- **Pay any AIFP service with one integration.** No per-provider billing relationships.
-- **Autonomous within policy.** Programmable budgets cap spend per window and per
-  merchant; breaches are denied cleanly (`AIFP-403-BUDGET-EXCEEDED`).
-- **Portable identity & reputation.** The Agent Passport travels across merchants; good
-  behavior earns lower risk, higher trust, and dynamic-pricing discounts.
-- **Verifiable spending.** Every payment yields a signed receipt — a perfect audit trail
-  for the agent's owner.
-- **Fast and cheap.** Sub-second pay-through; micropayment-native fees; multi-chain
-  choice of the cheapest/fastest settlement.
-- **x402 friendly.** Existing x402 agents can migrate through the compatibility endpoint.
+## 7. Micropayments And Batching
 
----
+Per-action prices can be much smaller than an economically sensible on-chain transaction. AIFP-1 therefore supports the idea of **metering actions separately from settlement frequency**.
 
-## 11. Technical Innovation
+For example, a merchant may meter many `$0.0005` actions and settle a prepaid or aggregated batch in one transaction. The critical requirement is reconciliation: the paid batch, remaining quota, merchant amount, and protocol fee must remain mathematically consistent.
 
-1. **Stateless verifiable receipts.** The core breakthrough: a cryptographic
-   proof-of-payment that a merchant verifies **without a database or callback**. This is
-   what lets AIFP sit in the request hot path at web scale.
-2. **HTTP-402-native, x402-compatible.** AIFP productizes the reserved status code into a
-   full payment stack while remaining interoperable with the broader x402 movement.
-3. **Agent Passport + Reputation Network.** Protocol-level identity (Ed25519), reputation
-   ∈ [0,1000] (start 500), risk ∈ [0,100], and trust levels
-   (untrusted/basic/verified/enterprise) — enabling trust between strangers at machine
-   speed.
-4. **mSECCO escrow & streaming payments.** Payment channels for high-frequency or
-   metered consumption, with escrow binding to the Passport.
-5. **Dynamic pricing with reputation discounts.** Prices clamp to `[min,max]`; reputable
-   agents earn up to a −30% discount — incentivizing good behavior economically.
-6. **Hybrid fiat/stablecoin settlement.** Regulated settlement rails can bridge on-chain
-   speed with off-chain familiarity, so merchants can hold fiat while agents pay in stablecoins.
-7. **Multi-chain abstraction.** One protocol, twelve networks; the agent picks the rail,
-   the protocol semantics stay identical.
+AIFP-1 does not require one blockchain transaction per HTTP request.
 
----
+## 8. Merchant Value
 
-## 12. Competitive Analysis
+A merchant integrating AIFP-1 can aim to:
 
-| Capability | AIFP | Raw x402 | Card rails / Stripe | Crypto transfer | Prepaid credits |
-|---|:--:|:--:|:--:|:--:|:--:|
-| HTTP-402 native | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Sub-cent micropayments | ✅ | ◑ | ❌ | ◑ | ✅ |
-| Stateless verifiable receipt | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Agent identity + reputation | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Programmable budgets | ✅ | ❌ | ◑ | ❌ | ◑ |
-| Multi-chain settlement | ✅ | ◑ | ❌ | ✅ | ❌ |
-| Hybrid fiat | ✅ | ❌ | ✅ | ❌ | ◑ |
-| Cross-provider interoperability | ✅ | ◑ | ✅ | ✅ | ❌ |
-| Tokenless / neutral | ✅ | ✅ | ✅ | ◑ | ✅ |
+- monetize AI-agent access instead of automatically blocking it;
+- define machine-readable pricing for content/API/data/compute actions;
+- preserve control over free vs paid resources;
+- receive cryptographically attributable paid access evidence;
+- use exact per-resource or pooled metering;
+- integrate payment alongside existing subscriptions, API contracts, and enterprise sales rather than replacing them.
 
-✅ native · ◑ partial / possible with custom work · ❌ not supported
+AIFP-1 does not guarantee that a merchant will receive a particular volume of agent traffic or revenue. Traffic measurement and commercial assumptions need to be validated for each merchant.
 
-**Positioning.** AIFP is to agent payments what **Stripe** is to online checkout and what
-**TLS** is to transport security: the layer everyone standardizes on. It does not compete
-with chains, wallets, or LLM providers — it makes them **payable**.
+## 9. Agent Value
 
----
+For an agent, AIFP-1 is intended to make a paid resource machine-usable:
 
-## 13. Business Model
+- learn that payment is required from HTTP `402`;
+- obtain a deterministic quote;
+- check budget and policy before spending;
+- sign from its own wallet;
+- receive a scoped receipt;
+- retry the resource without a human checkout form.
 
-AIFP monetizes the **transaction**, not the user, and not a token.
+The client should retain the ability to reject payments based on budget, merchant policy, route, asset, chain, or amount.
 
-- **Volume-tiered protocol fee:** **1% / 1% / 1%** (cap ~1%) on top of the resource
-  price, itemized on each receipt. Higher volume → lower tier.
-- **Hybrid fiat settlement** through regulated rails for enterprises that want fiat
-  payout.
-- **Enterprise & infrastructure tier:** SLAs, private deployments, advanced reputation /
-  compliance modules, dedicated chains/integrations.
+## 10. AIFP-1 Versus AIFP-2/x402
 
-Revenue scales directly with machine-commerce volume. Because the fee is thin and the
-unit economics are micropayment-native, AIFP wins on **ubiquity**: a small fee on an
-enormous, compounding base of agent transactions.
+HTTP status `402` is a shared HTTP primitive, not a protocol identity.
 
----
-
-## 14. Tokenless Architecture
-
-**AIFP has no native token, and that is a feature.**
-
-- **Trust & neutrality.** Enterprises, foundations, and regulators can adopt a payment
-  standard that isn't entangled with a speculative asset. Value is denominated in
-  established stablecoins (USDC/USDT/PYUSD) and fiat.
-- **No token risk.** No emissions, no unlock cliffs, no governance-by-bagholder, no price
-  dependency. The protocol's incentives are aligned with **usage**, not speculation.
-- **Standardization-ready.** Tokenless design is a prerequisite for AIFP to become a
-  genuine open standard adopted by parties who would never integrate a coin.
-
-Reputation and governance use **non-transferable, non-financial** signals (Agent Passport
-reputation/risk scores), not a tradable token. This keeps the trust layer honest and the
-protocol legitimate.
-
----
-
-## 15. Multi-Chain Strategy
-
-AIFP is **chain-agnostic** with a tiered support model (AIFP-1 Appendix B):
-
-| Tier | Networks | Capabilities |
+| Dimension | AIFP-1 | AIFP-2/x402 |
 |---|---|---|
-| **Full Core (8)** | Solana, Polygon, Avalanche, BNB Chain, Optimism, Arbitrum, Base, Unichain | Core + Passport + mSECCO escrow + Pyth oracle |
-| **Splitter-only EVM (2)** | BOT Chain, XRPL EVM | Payment splitter |
-| **Splitter MVP non-EVM (2)** | NEAR, Aptos | Payment splitter (MVP) |
+| Primary purpose | Merchant AI-traffic/resource monetization | Agent x402-style payment route |
+| Current AiFinPay fee | `1%` / `100` bps | `0%` |
+| Creator/referral fee | `0` | `0` |
+| Protocol classification | AIFP-1 challenge/quote/receipt | x402-compatible route/version |
 
-The agent chooses the cheapest/fastest rail; protocol semantics and receipt verification
-are **identical** across chains. New networks are added without changing the application
-contract — settlement is an implementation detail behind a stable protocol surface.
+A combined SDK may detect both, but it must keep route policy and economics separate.
 
----
+## 11. Identity
 
-## 16. Future Roadmap
+AIFP-1 can consume authenticated agent identity where it exists, but identity is not defined by a caller-controlled header alone.
 
-**2026 — Build & Harden.** Production hardening across supported network tiers; Agent Passport &
-Reputation Network GA; Dynamic Pricing Engine; streaming payments (mSECCO channels);
-enterprise hybrid-fiat settlement; deeper x402 interop; SOC 2 / security maturity.
+**AIFP-3 Agent Passport** is the separate identity/passport protocol surface. It should not be represented as an AIFP-1 payment object merely because identity can improve quota, trust, or attribution.
 
-**2026 H2 — E-commerce & Discovery.** Merchant Discovery Registry at scale; an
-**agentic e-commerce protocol** layer so agents can transact with large marketplaces;
-expanded SDK coverage; certification & compliance test suite (Doc 14).
+## 12. Multi-Chain Strategy
 
-**2027 — Standardize & Globalize.** Push AIFP toward formal **open-standard**
-recognition; global financial-infrastructure integrations; an **Agent Commerce Network**
-where reputation, discovery, and settlement compose into a self-sustaining ecosystem.
+AiFinPay can deploy settlement infrastructure across multiple networks, but protocol documentation must distinguish:
 
-The roadmap's center of gravity is **becoming the default** — the protocol assumed by
-every agent framework and every monetizable API.
+1. a network where some AiFinPay code has been deployed;
+2. a network with a canonical current payment target;
+3. a network/asset with a working settlement verifier;
+4. a network with a completed end-to-end AIFP-1 evidence bundle.
 
----
+Only the relevant route should be described as payment-live. The protocol itself remains chain-agnostic; deployment readiness is an implementation fact.
 
-## 17. Ecosystem Growth
+## 13. Security Model
 
-AIFP grows the way protocols grow: by making it trivial for others to build on top.
+Key risk areas include:
 
-- **Open spec + reference implementations + conformance tests** (Docs 01, 14).
-- **SDK and framework guidance** for the language surfaces described in Doc 11 and Doc 02.
-- **Developer portal, sandbox, examples, Postman/OpenAPI/JSON Schema** (Docs 07–10, 12).
-- **Open governance (AIP process)** so the community can evolve the standard (Doc 06).
-- **Partner integrations** across infrastructure and AI providers, plus hybrid
-  fiat/stablecoin settlement rails.
+- settlement spoofing;
+- replay and duplicate receipt issuance;
+- route/registry drift;
+- stale ABI/IDL or contract version assumptions;
+- token decimal mismatch;
+- budget concurrency races;
+- SSRF in hosted merchant gateways;
+- cross-resource/cross-merchant receipt reuse;
+- free-quota identity spoofing;
+- owner/admin compromise;
+- chain reorg/finality behavior.
 
-Every merchant that adds a paywall makes the network more valuable to every agent, and
-every agent with a Passport makes the network more valuable to every merchant. That
-two-sided flywheel — plus tokenless neutrality — is how AIFP compounds into a standard.
+Smart-contract and payment-path releases require stronger review than ordinary documentation or UI changes.
 
----
+## 14. Open Protocol And Conformance
 
-## 18. Conclusion
+AIFP-1 is maintained as an open draft specification. Conformance should be demonstrated through evidence, not marketing language.
 
-The agentic web has a hole where its payment layer should be. Humans have cards, wallets,
-and checkout flows; agents have nothing that works at micro-scale, across providers,
-instantly, and verifiably. **AIFP fills that hole** with a small, neutral, tokenless
-protocol that activates HTTP 402, supports multi-network and hybrid fiat settlement, and produces
-receipts a merchant can trust in microseconds.
+For a payment-live route, useful evidence includes:
 
-We are not building a coin or a closed platform. We are building the **payment standard
-for autonomous AI commerce** — the layer that becomes invisible because it becomes
-assumed. The market is arriving now, and the enabling technologies have matured enough
-for an open protocol effort.
+- exact source/version;
+- canonical deployment target;
+- route economics;
+- supported asset decimals;
+- CI/tests;
+- appropriate independent review;
+- real/isolated end-to-end payment proof;
+- receipt/replay tests;
+- ledger/reconciliation evidence where applicable.
 
-**AiFinPay is how agents pay.**
+The repository may evolve through AIPs and versioned protocol changes.
 
----
+## 15. Business Model
 
-## 19. Appendix — Glossary & References
+The current AIFP-1 protocol business model is simple: AiFinPay receives exactly 1% of successful AIFP-1 merchant monetization transactions under the current `100/0` profile.
 
-The canonical glossary is **AIFP-1 Appendix A** (Doc 01). Key terms used above:
+AIFP-2/x402 currently has 0% AiFinPay protocol fee. Network gas or third-party settlement/facilitator costs are separate from AiFinPay's protocol revenue.
 
-- **Agent (`agt_*`)** — autonomous software principal that consumes paid resources.
-- **Merchant (`mrch_*`)** — a service charging for resources via AIFP.
-- **Receipt** — Ed25519 JWT proof-of-payment; verified statelessly (TTL 600s).
-- **Agent Passport (`pp_*`)** — protocol-level agent identity with reputation/risk/trust.
-- **mSECCO** — escrow / payment-channel mechanism on Full Core networks.
-- **Pyth** — price oracle used on Full Core networks.
-- **Regulated settlement rail** — fiat/stablecoin settlement provider integration.
+Future products, enterprise services, card/fiat rails, or other protocols may have separate commercial terms; they should not be silently encoded into AIFP-1.
 
-**Normative & companion documents:** AIFP-1 RFC (01) · Merchant Integration Guide (02) ·
-Agent SDK Spec (03) · Security & Cryptography Spec (04) · AIP Governance (06) · Quick
-Start (07) · OpenAPI 3.1 (08) · Postman (09) · JSON Schemas (10) · SDK Reference (11) ·
-Developer Portal (12) · Branding (13) · Ecosystem & Governance (14) · Repository
-Architecture (15).
+## 16. Roadmap Principles
 
-*This whitepaper is descriptive, not a securities offering. AIFP is a tokenless protocol;
-nothing herein constitutes an offer of any token or financial instrument.*
+The protocol roadmap should prioritize correctness before breadth:
+
+1. one canonical source of truth for economics and route registries;
+2. verifier-before-payment safety;
+3. end-to-end evidence on each claimed payment-live route;
+4. merchant onboarding and measurable real traffic;
+5. durable financial ledger/reconciliation;
+6. interoperable SDK/MCP surfaces;
+7. additional chains/rails only when source provenance and verification are clear.
+
+## 17. Status And Disclaimer
+
+AIFP-1 is an experimental/draft protocol specification. It should not be described as production-ready solely because the specification, SDK interface, or contracts exist.
+
+This whitepaper is descriptive. It is not legal, tax, investment, or securities advice, and it does not constitute an offer of a token or financial instrument.
+
+## References
+
+- [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
+- [Merchant Integration Guide](./02-Merchant-Integration-Guide.md)
+- [Agent SDK Specification](./03-AI-Agent-SDK-Specification.md)
+- [Security & Cryptography](./04-Security-and-Cryptography-Specification.md)
+- [Protocol Economics](../economics.md)

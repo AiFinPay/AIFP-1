@@ -1,106 +1,142 @@
-# Architecture Overview
+# AIFP-1 Architecture Overview
 
-AiFinPay Paywall Protocol separates payment orchestration from request authorization. The control plane signs receipts; the merchant data plane verifies them locally.
+AIFP-1 separates merchant request authorization from payment settlement. The payer executes the selected settlement, a verifier confirms it against the binding quote, and a receipt authority issues paid-access proof. The merchant then verifies that proof locally before serving the protected resource.
 
 ## System Model
 
 ```mermaid
 flowchart TB
-    subgraph Client["Client Side"]
+    subgraph Client["Payer / Agent"]
         Agent["AI Agent"]
-        AgentSDK["Agent SDK"]
-        Wallet["Wallet Binding"]
-        Passport["Agent Passport"]
+        ClientPolicy["Budget + Route Policy"]
+        Wallet["Local Wallet / Signer"]
     end
 
     subgraph Merchant["Merchant Data Plane"]
-        Middleware["Paywall Middleware"]
-        Pricing["Pricing + Quota"]
+        Middleware["AIFP-1 Middleware"]
+        Pricing["Resource Pricing / Metering"]
         ReceiptCheck["Receipt Verifier"]
         Protected["Protected Resource"]
     end
 
-    subgraph Control["AiFinPay Control Plane"]
-        Quote["Quote API"]
-        Pay["Pay API"]
+    subgraph Control["AIFP-1 Control Plane"]
+        Quote["Binding Quote"]
+        SettlementVerify["Settlement Verifier"]
         Receipt["Receipt Authority"]
-        Webhooks["Webhook Service"]
-        Keys["JWKS + Key Rotation"]
+        Ledger["Ledger / Reconciliation"]
+        Keys["Verification Keys / Rotation"]
     end
 
-    subgraph Settlement["Settlement"]
-        Stable["Stablecoins"]
-        Fiat["Fiat / regulated rails"]
-        Chains["12 Networks"]
+    subgraph Settlement["Settlement Rail"]
+        Target["Canonical Contract / Program / Rail"]
+        Asset["Selected Asset"]
     end
 
-    Agent --> AgentSDK
-    AgentSDK --> Middleware
+    Agent --> Middleware
     Middleware --> Pricing
-    Pricing -->|402| AgentSDK
-    AgentSDK --> Quote
-    Quote --> Pay
-    Pay --> Stable
-    Pay --> Fiat
-    Stable --> Chains
-    Pay --> Receipt
-    Receipt --> AgentSDK
-    AgentSDK --> ReceiptCheck
+    Pricing -->|AIFP-1 402| Agent
+    Agent --> ClientPolicy
+    ClientPolicy --> Quote
+    Quote --> ClientPolicy
+    ClientPolicy --> Wallet
+    Wallet -->|sign + broadcast| Target
+    Target --> Asset
+    Target -->|tx / settlement evidence| SettlementVerify
+    Agent -->|tx_ref + quote_id| SettlementVerify
+    SettlementVerify -->|verified only| Receipt
+    SettlementVerify --> Ledger
+    Receipt --> Agent
+    Agent -->|receipt| ReceiptCheck
     ReceiptCheck --> Keys
     ReceiptCheck --> Protected
-    Receipt --> Webhooks
 ```
+
+## Economic Profiles
+
+| Route | Treasury | Creator/referral | Purpose |
+|---|---:|---:|---|
+| **AIFP-1** | `100` bps | `0` bps | Merchant AI-traffic/resource monetization |
+| **AIFP-2/x402** | `0` bps | `0` bps | Separate agent-payment route |
+
+Current AIFP-1 reference prices are `$0.0005 / $0.002 / $0.005` for Standard / Complex / Premium.
 
 ## Trust Boundaries
 
-| Boundary | Trust Assumption | Control |
-|---|---|---|
-| Agent to merchant | Network is untrusted | TLS and signed receipts |
-| Agent to control plane | Agent authenticates with API key | Authorization and budgets |
-| Control plane to merchant | Receipt is bearer proof | Ed25519 signature and audience binding |
-| Merchant data plane | Must work during degraded mode | Local verification and cached JWKS |
-| Settlement layer | Chain or fiat settlement may be async | Receipt issuance policy and webhooks |
+| Boundary | Security requirement |
+|---|---|
+| Agent → merchant | A `402` challenge is not payment proof; protected access requires valid receipt/policy |
+| Quote → payer | Quote must bind merchant/resource/amount/route and current `100/0` economics |
+| Payer wallet → settlement rail | Signing remains local to the payer in the non-custodial crypto flow |
+| Settlement rail → verifier | Verifier checks actual chain/rail evidence, not merely the presence of a tx hash |
+| Verifier → receipt authority | Receipt is issued only after successful settlement verification |
+| Receipt → merchant | Merchant checks signature, audience, resource/scope, expiry, amount/quota and replay rules |
 
-## Data Plane
+## Verifier-Readiness Gate
 
-The merchant data plane is intentionally small:
+The quote service must not instruct the payer to send funds through a route that the active verifier cannot validate.
 
-1. Identify agent and quota state.
-2. Return a machine-readable `402` challenge when payment is required.
-3. Verify receipt signature and claims locally.
-4. Serve or reject the protected resource.
+```text
+route selected
+  ↓
+canonical target known?
+  ↓ yes
+asset decimals known?
+  ↓ yes
+SDK/transaction semantics known?
+  ↓ yes
+verifier supports exact route/profile?
+  ↓ yes
+payable quote may be issued
+```
 
-## Control Plane
+Any required answer of `no` means fail **before payment**.
 
-The AiFinPay control plane owns:
+## Merchant Data Plane
 
-- Quotes.
-- Payments.
-- Receipt issuance.
-- Ledger records.
-- Settlement adapters.
-- Webhooks.
-- JWKS and key rotation.
-- Policy, risk, and Agent Passport services.
+The merchant side should remain small and deterministic:
+
+1. identify protected resource and pricing/metering policy;
+2. decide open/free/blocked/paid access;
+3. return AIFP-1 `402` when payment is required;
+4. validate receipt locally where supported;
+5. consume/meter receipt quota atomically;
+6. serve or reject the request.
+
+A caller-controlled agent-ID header alone is not sufficient durable identity for abuse-resistant free quota.
+
+## Settlement / Control Plane
+
+Logical responsibilities include:
+
+- binding quote issuance;
+- route/deployment registry;
+- settlement verification;
+- receipt issuance;
+- key publication/rotation;
+- financial ledger/reconciliation;
+- operational observability.
+
+The exact hosted service topology is implementation-specific and is not guaranteed by this protocol architecture document.
+
+## Multi-Chain Status
+
+AIFP-1 is designed to be rail-agnostic, but documentation must distinguish:
+
+- deployed code;
+- canonical settlement target;
+- verifier-ready route;
+- SDK-ready route;
+- E2E-verified route;
+- approved payment-live route.
+
+Do not use a raw network count as a substitute for these states.
+
+## Protocol Boundaries
+
+AIFP-3 Agent Passport may provide authenticated identity to an implementation, but it is not part of the normative AIFP-1 payment object model. AIFP-2/x402 may be handled by the same SDK, but its wire semantics and `0/0` economics remain separate.
 
 ## Repository Architecture
 
-```mermaid
-flowchart LR
-    Root["Repository Root"] --> Docs["docs"]
-    Root --> SDK["sdk"]
-    Root --> Examples["examples"]
-    Root --> Sandbox["sandbox"]
-    Root --> Schemas["schemas"]
-    Root --> Assets["assets"]
-    Root --> Scripts["scripts"]
-    Root --> Tests["tests"]
-    Root --> GitHub[".github"]
+The public repository contains specifications, machine-readable API/schema artifacts, examples, and documentation. Actual production SDK/backend/contracts live in their own implementation repositories where applicable. This protocol repository must not imply that a documentation stub is a published production implementation.
 
-    Docs --> Canonical["docs/aifp canonical docs"]
-    SDK --> Languages["TS / Python / Go / Rust / Java / PHP / .NET"]
-    Examples --> Recipes["merchant / agent / wallet / webhooks"]
-    Tests --> Conformance["protocol conformance"]
-```
-
-The canonical repository architecture is maintained in [`docs/aifp/15-Repository-Architecture.md`](aifp/15-Repository-Architecture.md).
+The broader repository architecture guidance is maintained in [`docs/aifp/15-Repository-Architecture.md`](aifp/15-Repository-Architecture.md).

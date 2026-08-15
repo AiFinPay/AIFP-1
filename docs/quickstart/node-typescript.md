@@ -1,86 +1,112 @@
-# Node / TypeScript Quick Start
+# Node / TypeScript AIFP-1 Quick Start
 
-## What You Need
+This page shows the AIFP-1 protocol flow in TypeScript-style pseudocode. Verify the actual published SDK package/version and its current API in the SDK repository/package registry before copying package-specific code into production.
 
-- Node.js 20 LTS or newer.
-- An AiFinPay sandbox merchant endpoint.
-- A test wallet funded with sandbox tokens.
-- A sandbox API key that starts with `sk_test_`.
-- A test token source for sandbox funds. The public faucet URL is published with the hosted sandbox.
-
-## Install
-
-```bash
-npm install @aifinpay/agent@alpha @aifinpay/merchant@alpha
-```
-
-`alpha` means the API may change while the SDK surface is still being settled.
-
-## Sandbox Example
+## Current AIFP-1 Economics
 
 ```ts
-import { AIFPAgent } from "@aifinpay/agent";
+const AIFP1 = {
+  pricesUsd: {
+    standard: "0.0005",
+    complex: "0.002",
+    premium: "0.005"
+  },
+  treasuryBps: 100,
+  creatorBps: 0
+} as const;
+```
 
-async function main() {
-  const agent = new AIFPAgent({
-    apiKey: process.env.AIFP_AGENT_KEY!,
-    walletId: process.env.AIFP_WALLET_ID!,
-    baseUrl: "https://sandbox.api.aifinpay.io"
+AIFP-2/x402 is a separate `0/0` route profile.
+
+## Protocol-Oriented Flow
+
+```ts
+async function payAifp1Resource(url: string) {
+  const first = await fetch(url);
+  if (first.status !== 402) return first;
+
+  const challenge = await first.json();
+  if (challenge.protocol !== "AIFP-1") {
+    throw new Error("not an AIFP-1 challenge");
+  }
+
+  const quoteRes = await fetch(challenge.quote_endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      merchant_id: challenge.merchant_id,
+      resource: challenge.resource,
+      pricing_tier: challenge.pricing_tier,
+      units: 1
+    })
   });
 
-  const response = await agent.call("https://sandbox.merchant.example/api/data", {
-    method: "GET",
+  if (!quoteRes.ok) throw new Error(`quote failed: ${quoteRes.status}`);
+  const quote = await quoteRes.json();
+
+  if (quote.route_class !== "AIFP-1") throw new Error("route mismatch");
+  if (Number(quote.treasury_bps) !== 100 || Number(quote.creator_bps) !== 0) {
+    throw new Error("AIFP-1 economics mismatch");
+  }
+
+  // Budget/policy check must happen before signing.
+  await assertBudgetAllows(quote);
+
+  // Implementation-specific: build the transaction for the canonical verified
+  // deployment, then ask the payer wallet to sign and broadcast locally.
+  const tx = await buildSettlementFromVerifiedRegistry(quote);
+  const txRef = await payerWallet.signAndBroadcast(tx);
+
+  // Submit only the settlement reference — never the private key/recovery phrase.
+  const payRes = await fetch("https://api.aifinpay.io/v1/pay", {
+    method: "POST",
     headers: {
-      "Accept-Payment": "aifp/1.0"
+      "content-type": "application/json",
+      "idempotency-key": crypto.randomUUID()
+    },
+    body: JSON.stringify({
+      quote_id: quote.quote_id,
+      chain: quote.chain,
+      asset: quote.asset,
+      tx_ref: txRef
+    })
+  });
+
+  if (payRes.status === 202) throw new Error("settlement pending; reconcile before retrying payment");
+  if (!payRes.ok) throw new Error(`settlement verification failed: ${payRes.status}`);
+
+  const receipt = await payRes.json();
+
+  return fetch(url, {
+    headers: {
+      "Payment-Receipt": receipt.receipt
     }
   });
-
-  console.log(JSON.stringify(response, null, 2));
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
-```
-
-Example sandbox response:
-
-```json
-{
-  "ok": true,
-  "resource": "/api/data",
-  "pricing_tier": "standard",
-  "quote_id": "qt_sbx_01",
-  "receipt_id": "rcpt_sbx_01",
-  "receipt_status": "settled",
-  "charged_amount": "0.00001",
-  "protocol_fee": "0.0000001",
-  "merchant_settlement": "0.0000099"
 }
 ```
 
-## What Happened Under The Hood
+## Required Safety Properties
 
-The SDK detected a `402 Payment Required` response, requested a quote, paid the sandbox price,
-received a receipt token, and retried the original request. The receipt is a signed capability
-that the merchant can verify locally without a round trip. For the protocol mechanics, see
-[x402 Flow](../core-concepts/x402-flow.md). The receipt is bound to the merchant, resource, amount,
-and nonce so it cannot be replayed elsewhere.
+- classify AIFP-1 separately from x402;
+- validate quote economics `100/0` before signing;
+- enforce budget before signing/broadcasting;
+- use exact decimal/integer money arithmetic;
+- use the canonical deployment/ABI/IDL for the selected route;
+- keep signing local to the payer wallet;
+- do not issue/trust a receipt until settlement verification succeeds;
+- reconcile ambiguous broadcast errors before retrying a payment;
+- prevent replay/duplicate settlement consumption.
 
-## Going To Production
+## Going Live
 
-- Audit the merchant contract and receipt verification path.
-- Set explicit spend limits on the wallet.
-- Switch the base URL from sandbox to production only after approval.
-- Replace sandbox keys with production keys.
-- Add monitoring for 402, 409, 410, 422, and 429 responses.
-- Confirm the payout account and settlement rail before enabling live spend.
+Do not switch a route to live spend merely by changing a base URL. Confirm that the selected chain/asset has:
 
-## Common Mistakes
+1. canonical current settlement target;
+2. current AIFP-1 `100/0` economics;
+3. correct token decimals;
+4. SDK transaction builder support;
+5. settlement verifier support;
+6. end-to-end payment/receipt/replay evidence;
+7. appropriate review/approval for the financial path.
 
-- Using a production key against the sandbox URL.
-- Forgetting to attach an `Idempotency-Key` for repeated payment attempts.
-- Reusing an expired quote.
-- Reusing a nonce.
-- Calling the production endpoint before wallet policy is in place.
+See [AIFP-1 HTTP 402 Flow](../core-concepts/x402-flow.md) and [SDK Specification](../aifp/03-AI-Agent-SDK-Specification.md).

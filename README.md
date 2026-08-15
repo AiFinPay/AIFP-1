@@ -20,7 +20,7 @@
 
 ## The Payment Layer For The Agent Economy
 
-AiFinPay AIFP-1 turns HTTP `402 Payment Required` into a production-grade payment handshake for AI agents. A merchant can price any API action, content object, data query, or compute job. An agent can discover the price, pay automatically within policy, receive a cryptographic receipt, and retry the original request without a human checkout screen.
+AiFinPay AIFP-1 turns HTTP `402 Payment Required` into a structured payment handshake for AI agents. A merchant can price any API action, content object, data query, or compute job. An agent can discover the price, pay automatically within policy, receive a cryptographic receipt, and retry the original request without a human checkout screen.
 
 ```mermaid
 flowchart LR
@@ -78,11 +78,11 @@ and machine-to-machine commerce. The intent is compatibility and specialization,
 
 | Tier | Starts From | Intended Workload |
 |---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | Search, aggregation, multi-source queries, higher compute |
+| `premium` | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
 
-AiFinPay charges a **1% protocol fee** on successful transactions. The remaining **99% settles to the merchant**, excluding any applicable payment-network, gas, processor, or settlement costs.
+For the current AIFP-1 merchant-monetization profile, AiFinPay charges exactly **1% (`100` bps)** on successful monetized transactions, with **no creator/referral fee (`0` bps)**. The merchant receives **99% before applicable network or settlement costs**. AIFP-2/x402 agent-payment routes are a separate profile and use **0% AiFinPay protocol fee (`0/0`)**.
 
 Learn more in [Protocol Economics](docs/economics.md).
 
@@ -170,7 +170,7 @@ sequenceDiagram
     "merchant_id": "mrch_9f3a1c2b",
     "resource": "/api/data",
     "pricing_tier": "standard",
-    "estimated_amount": "0.00001",
+    "estimated_amount": "0.0005",
     "currency": "USD",
     "accepted_assets": ["USDC", "USDT", "PYUSD"],
     "accepted_chains": ["polygon", "base", "solana"],

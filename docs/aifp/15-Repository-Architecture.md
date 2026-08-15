@@ -1,152 +1,230 @@
-# AIFP Repository Architecture
+# AIFP-1 Repository Architecture
 
-**Document:** AIFP-DOC-15 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
+**Document:** AIFP-DOC-15  
+**Status:** Active architecture guidance
 
-> The official GitHub organization layout for the AiFinPay Paywall Protocol (AIFP).
-> Every repo follows the naming convention in Doc 13 and is published under
-> **Apache-2.0**. Org: **`github.com/aifinpay`**.
+This document describes **source-of-truth responsibilities**, not a promise that every conceptual repository/package in older drafts exists. Current repository names, package releases, and default branches must be verified from the actual AiFinPay GitHub organization/package registries.
 
----
+## 1. Principle: One Source Of Truth Per Concern
 
-## 1. Organization Overview
+A payment system must not have multiple competing "canonical" copies of the same deployment, economics, ABI/IDL, or SDK behavior.
+
+Recommended ownership:
+
+| Concern | Canonical home |
+|---|---|
+| AIFP-1 normative protocol | This repository's AIFP-1 RFC + accepted AIPs |
+| Current AIFP-1 economics | `docs/economics.md` + RFC; implementation must match |
+| OpenAPI contract | `docs/aifp/08-OpenAPI-3.1-Specification.yaml` |
+| AIFP-1 JSON object shapes | `docs/aifp/10-JSON-Schemas.md` / generated schema artifacts |
+| Examples | Derived from the canonical protocol/API/schema surfaces |
+| SDK implementation | Actual SDK repository/package source |
+| Hosted backend implementation | Actual backend/service repository |
+| Smart contracts/programs | Chain-specific canonical source repositories |
+| Deployment addresses/provenance | Canonical deployment registry/evidence source used by SDK/backend |
+| Production release state | Release/deployment evidence, not this docs repository |
+
+## 2. Current Protocol Boundaries
+
+This repository's primary subject is **AIFP-1 merchant AI-traffic/resource monetization**.
 
 ```text
-github.com/aifinpay
-├── aifp                     # Protocol spec (AIFP-1 RFC), AIPs, conformance pointers
-├── openapi                  # OpenAPI 3.1 source (Doc 08) — single API source of truth
-├── schemas                  # JSON Schemas (Doc 10) — published to schemas.aifinpay.io
-├── conformance              # Conformance test suite (Doc 14 §8)
-│
-├── server                   # Reference protocol server (settlement core + control plane)
-│
-├── merchant-js              # Merchant SDK — TypeScript/Node (@aifinpay/merchant)
-├── agent-js                 # Agent SDK — TypeScript/Node (@aifinpay/agent)
-├── aifinpay-python          # Agent + Merchant SDK — Python
-├── aifp-go                  # Agent + Merchant SDK — Go
-├── aifinpay-rust            # SDK — Rust (crate: aifinpay)
-├── aifinpay-java            # SDK — Java (io.aifinpay:aifp)
-├── aifinpay-php             # SDK — PHP (aifinpay/aifp)
-├── aifinpay-dotnet          # SDK — C#/.NET (AiFinPay)
-│
-├── examples                 # Runnable examples & quickstarts (Doc 07)
-├── docs                     # Developer portal content (docs-as-code · Doc 12)
-├── portal                   # Portal app/site generator (renders docs)
-│
-├── postman                  # Postman collection + environments (Doc 09)
-├── brand                    # Logos, palette, fonts, brand assets (Doc 13)
-└── .github                  # Org-level templates, workflows, community health files
+AIFP-1 → merchant monetization → 100/0
+AIFP-2/x402 → separate agent payment route → 0/0
+AIFP-3 → identity / Agent Passport
 ```
 
----
+Do not duplicate AIFP-2 or AIFP-3 normative specifications into AIFP-1 merely because SDKs may integrate all of them.
 
-## 2. Repository Catalog
+## 3. Economics Synchronization
 
-### Protocol & Specs
-
-| Repo | Contents | Source doc |
-|---|---|---|
-| `aifp` | AIFP-1 RFC, AIP index + accepted AIPs, error registry. **Normative home.** | 01, 06 |
-| `openapi` | `openapi.yaml` (3.1), lint config, codegen pipelines. | 08 |
-| `schemas` | JSON Schema 2020-12 files + bundle; CI validation. | 10 |
-| `conformance` | Test vectors + runner (`@aifinpay/conformance`). | 14 |
-
-### Backend
-
-| Repo | Contents |
-|---|---|
-| `server` | Reference implementation: challenge/quote/pay/receipt, JWKS, settlement adapters, hybrid fiat/stablecoin rails, webhooks. Tracks every Final AIP. |
-
-### Merchant SDK & Agent SDK
-
-| Repo | Package |
-|---|---|
-| `merchant-js` | `@aifinpay/merchant` (Express/Fastify/Next/etc. middleware) |
-| `agent-js` | `@aifinpay/agent` |
-| `aifinpay-python` | `aifinpay-merchant`, `aifinpay-agent` |
-| `aifp-go` | `github.com/aifinpay/aifp-go` |
-| `aifinpay-rust` | crate `aifinpay` |
-| `aifinpay-java` | `io.aifinpay:aifp` |
-| `aifinpay-php` | `aifinpay/aifp` |
-| `aifinpay-dotnet` | `AiFinPay` |
-
-All SDK repos mirror the SDK Reference (Doc 11) and are generated/validated against `openapi` + `schemas` in CI.
-
-### Examples · Documentation · RFC · Website · Developer Portal
-
-| Repo | Contents | Doc |
-|---|---|---|
-| `examples` | Quickstart, paywall, pay-through, x402-migration, webhooks. | 07 |
-| `docs` | Markdown content for the portal (Docs 01–15 rendered). | 12 |
-| `portal` | Static-site generator + API Explorer + Receipt Inspector. | 12 |
-| `aifp` (RFC section) | RFC + AIP process lives here. | 01, 06 |
-| `brand` | Logos, color tokens, fonts, usage rules. | 13 |
-| `postman` | Collection + sandbox/prod environments. | 09 |
-
-### CI/CD
-
-A central `.github` repo holds **reusable workflows** consumed by every repo: `lint`, `test`, `conformance`, `openapi-validate`, `schema-validate`, `codegen`, `release` (SemVer + changelog), `docs-preview`.
-
----
-
-## 3. Standard Repo Layout (per SDK)
+Current AIFP-1 reference economics:
 
 ```text
-<sdk-repo>/
-├── src/                     # library source
-├── tests/                   # unit + conformance harness
-├── examples/                # language-specific runnable samples
-├── README.md                # install · quickstart · links to Doc 11
-├── CHANGELOG.md             # SemVer (Doc 06 §5)
-├── LICENSE                  # Apache-2.0
-├── CONTRIBUTING.md          # → org contribution guide
-├── CODE_OF_CONDUCT.md
-├── SECURITY.md              # report channel → Security Council (Doc 14 §4)
+standard: $0.0005/action
+complex:  $0.002/action
+premium:  $0.005/action
+treasuryBps: 100
+creatorBps:  0
+```
+
+Any economics change must update all affected current surfaces in one coordinated change:
+
+1. RFC/economics;
+2. OpenAPI;
+3. schemas;
+4. Postman/examples;
+5. SDK policy/registry;
+6. backend quote/verifier policy;
+7. contract/deployment profile;
+8. tests/conformance;
+9. developer docs/changelog.
+
+Legacy values may remain only in explicitly historical material.
+
+## 4. Implementation Repository Requirements
+
+A payment implementation repository should provide enough context to establish:
+
+- what it implements;
+- which protocol/route versions it supports;
+- build/test commands;
+- security reporting process;
+- current deployment/registry source where applicable;
+- CI/release workflow;
+- source ownership/maintainers;
+- known legacy/deprecated paths.
+
+High-risk payment and smart-contract repositories should also document the independent review/release gate.
+
+## 5. Contract Source Provenance
+
+A chain/program address must have one identified canonical source/version relationship.
+
+If two source trees claim the same deployed program/address but differ materially:
+
+1. neither should be cited as canonical by assumption;
+2. establish reproducible build/runtime/source evidence;
+3. select/record the winning canonical source;
+4. archive/gravestone the losing duplicate or clearly label it historical;
+5. regenerate ABI/IDL from the canonical source;
+6. update SDK/backend registry and tests.
+
+This avoids audit responses citing the wrong source tree.
+
+## 6. Default Branch / Production Source
+
+Every active implementation repository should define one canonical default/main integration branch.
+
+Avoid long-lived situations where:
+
+- GitHub default branch is `main`;
+- active product development is merged to `master`;
+- production deploys from another branch;
+- security remediation lives on a fourth long-lived branch.
+
+If temporary release branches are required, the production SHA and branch relationship must be explicit and reconciled back to the canonical branch.
+
+## 7. Deployment Registry
+
+A payment-target registry should distinguish at least:
+
+- chain/network ID;
+- contract/program address;
+- implementation version;
+- runtime/source provenance;
+- supported payment entrypoint;
+- supported assets and decimals;
+- active economic profile;
+- verifier support;
+- activation status;
+- legacy/superseded status.
+
+A current SDK/backend should consume or generate from one canonical registry rather than hand-maintaining independent address tables.
+
+## 8. Network Status Vocabulary
+
+Do not use a raw network count as a release status.
+
+Use explicit states such as:
+
+- `deployed`;
+- `source verified`;
+- `canonical target`;
+- `verifier ready`;
+- `SDK ready`;
+- `E2E verified`;
+- `payment-live`;
+- `legacy`.
+
+A network can be deployed but not payment-live under the current AIFP-1 profile.
+
+## 9. SDK And Package Documentation
+
+This protocol repository may link real packages but should not invent packages/releases from an aspirational language matrix.
+
+For each package link, verify:
+
+- exact package name;
+- current version;
+- source repository;
+- current protocol routes;
+- supported chains/assets;
+- published installation command.
+
+Planned SDKs should be labeled planned.
+
+## 10. CI / Conformance Expectations
+
+Relevant repositories should automate as much of the following as practical:
+
+- build/lint;
+- unit/integration tests;
+- protocol/economic regression tests;
+- ABI/IDL/schema drift checks;
+- deployment-registry drift checks;
+- dependency/security scanning;
+- secrets scanning;
+- replay/idempotency tests;
+- low-value/decimal tests;
+- route isolation tests.
+
+For AIFP-1, conformance should assert `100/0` and current reference prices. For AIFP-2, conformance should assert `0/0` separately.
+
+## 11. Pull Request Traceability
+
+High-value implementation changes should maintain a traceability chain:
+
+```text
+Requirement / Jira
+→ implementation branch
+→ PR
+→ exact head SHA
+→ CI/tests
+→ independent review where required
+→ deployment/release approval
+→ deployed SHA/address/version
+→ E2E evidence
+```
+
+A PR title or "CI green" alone is not production approval.
+
+## 12. Documentation Repository Layout
+
+Within this AIFP-1 repository:
+
+```text
+/
+├── README.md
+├── aips/                 # governance proposals
+├── docs/
+│   ├── economics.md
+│   ├── architecture.md
+│   ├── quickstart/
+│   └── aifp/             # canonical documentation package
+├── examples/
+├── schemas/
+├── sdk/                  # protocol-facing SDK design notes, not necessarily implementation
+├── scripts/
+├── tests/
 └── .github/
-    ├── workflows/ci.yml     # uses reusable workflows from .github repo
-    ├── ISSUE_TEMPLATE/
-    └── PULL_REQUEST_TEMPLATE.md
 ```
 
----
+Documentation stubs under `sdk/` or `tests/` must not be described as production implementations unless real code/tests exist there.
 
-## 4. Issue Templates (org-level, in `.github`)
+## 13. Archive / Legacy Policy
 
-- **Bug report** — repro, expected vs actual, SDK/version, protocol version, request_id.
-- **Feature request** — problem, proposed solution, alternatives. Large changes are redirected to the **AIP process** (Doc 06).
-- **Security report** — *disabled as public issue*; routes to private advisory + Security Council per `SECURITY.md` (responsible disclosure).
-- **Conformance failure** — failing vector id, role, implementation under test.
+Keep historical repositories when they provide deployment/audit evidence, but archive or clearly mark them when they are no longer active sources of truth.
 
----
+An archived repository should point to its successor when one exists. Do not merge current product updates into an obsolete duplicate merely to keep both copies looking current.
 
-## 5. Pull Request Template
+## 14. Current Release Principle
 
-```markdown
-## What & why
-## Linked AIP (required for protocol/API/schema changes)
-## Backward compatibility   (PATCH | MINOR | MAJOR — Doc 06 §5)
-## Conformance              (suite run output, must be green)
-## Docs updated             (which of Docs 01–15)
-## Checklist
-- [ ] DCO sign-off
-- [ ] Matches OpenAPI (Doc 08) & JSON Schemas (Doc 10)
-- [ ] Code style (Doc 13)
-- [ ] Tests + conformance pass
-```
+For payment infrastructure, prefer:
 
----
+**one canonical source + one canonical registry + one reviewed release path**
 
-## 6. Contribution Guide (summary)
+over
+**many partially synchronized repositories/branches claiming the same behavior**.
 
-1. For protocol/API/schema changes, **open an AIP first** (Doc 06) — code follows an Accepted AIP.
-2. Small fixes (docs, examples, SDK bugs) go straight to PR with DCO sign-off.
-3. CI must pass: lint · test · `openapi-validate` · `schema-validate` · `conformance`.
-4. Keep invariants consistent (pricing, fees, 12 networks, receipt TTL) — any change must propagate to every affected doc/artifact (see README "Synchronization").
-5. License: Apache-2.0. By contributing you agree to the DCO.
-
----
-
-## 7. Release & Publishing
-
-- **SemVer** tags trigger the `release` workflow: build, test, conformance, publish to the language registry (npm/PyPI/Go/crates/Maven/Packagist/NuGet), generate changelog, and deploy a docs preview.
-- Protocol releases (`aifp`) drive a coordinated SDK bump; SDKs declare the protocol version(s) they conform to.
-- `kid` rotation for receipt signing keys is a server-side release event documented in the changelog; old `kid`s stay resolvable for receipt TTLs.
+That principle is part of AIFP-1 operational correctness because stale source/registry/economic data can lead directly to incorrect payments.

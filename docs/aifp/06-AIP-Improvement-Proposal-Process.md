@@ -1,194 +1,179 @@
 # AIFP Improvement Proposal (AIP) Process
 
-**Document:** AIFP-DOC-06 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
-**Status:** Active · Modeled on Ethereum EIPs, Python PEPs, and the IETF RFC process.
+**Document:** AIFP-DOC-06  
+**Status:** Active governance process  
+**Applies to:** AIFP-1 protocol evolution and repository governance
 
-> An **AIP** (AiFinPay Improvement Proposal) is the formal mechanism for proposing,
-> debating, and ratifying changes to the AiFinPay Paywall Protocol (AIFP) and its
-> ecosystem. AIP-1 (this process) is itself an AIP and may only be changed by an AIP.
+An **AIP** (AiFinPay Improvement Proposal) is the repository mechanism for proposing, reviewing, and recording material protocol changes. It is intended to prevent undocumented drift between the normative specification, machine-readable contracts, SDK/backend behavior, contracts, and deployment profiles.
 
----
+## 1. AIP Types
 
-## 1. Purpose
+| Type | Scope |
+|---|---|
+| **Standards Track** | Protocol semantics, interfaces, receipt/quote objects, settlement rules, security rules, network/profile support |
+| **Meta** | Governance and process changes |
+| **Informational** | Non-binding guidance, design notes, operational recommendations |
 
-The AIP process exists to make protocol evolution **transparent, reviewable, and
-backward-compatibility-aware**. It ensures that any change to AIFP-1, its APIs, schemas,
-SDKs, or governance is documented, discussed in the open, and ratified by a defined body
-before it becomes normative.
+Standards Track proposals may use categories such as `Core`, `Interface`, `Networks`, `Security`, or `Economics`.
 
----
-
-## 2. AIP Types
-
-| Type | Scope | Examples |
-|---|---|---|
-| **Standards Track** | Changes to the protocol itself (wire format, endpoints, receipts, errors, networks). | New error code, new settlement chain, receipt claim addition. |
-| **Meta** | Changes to processes, governance, or the AIP process itself. | Amending this document; changing the review board. |
-| **Informational** | Guidelines, best practices, design notes; non-binding. | Recommended retry tuning; security advisories. |
-
-Standards Track AIPs are further sub-categorized: **Core** (protocol semantics),
-**Interface** (APIs/SDKs/schemas), **Networks** (chain support), **Security**.
-
----
-
-## 3. Proposal Lifecycle
+## 2. Lifecycle
 
 ```text
-   Idea ──► Draft ──► Review ──► Last Call ──► Accepted ──► Final
-                 │         │                        │
-                 └─────────┴────────────────────────┴──► Rejected / Withdrawn / Stagnant
-                                                          Superseded (by a later AIP)
+Idea → Draft → Review → Last Call → Accepted → Final
+         └──────────────→ Rejected / Withdrawn / Stagnant
+Final ──────────────────→ Superseded
 ```
 
-| Status | Meaning | Entry criteria |
-|---|---|---|
-| **Draft** | Formally tracked, assigned an AIP number. | Author opens PR; meets template & formatting. |
-| **Review** | Under active community + editor review. | Editor marks ready; discussion thread open. |
-| **Last Call** | Final 14-day window for objections. | Review complete; no unresolved blocking issues. |
-| **Accepted** | Approved by the review board; awaiting reference implementation. | Board sign-off after Last Call. |
-| **Final** | Normative. Part of the protocol. | Reference implementation merged + conformance tests pass. |
-| **Rejected** | Declined with recorded rationale. | Board decision or author abandonment after review. |
-| **Withdrawn** | Author retracts. | Author request. |
-| **Stagnant** | Inactive >6 months in Draft/Review. | Auto-marked; may be resurrected. |
-| **Superseded** | Replaced by a newer Final AIP. | Successor reaches Final. |
+| Status | Meaning |
+|---|---|
+| `Draft` | Proposal exists and is open to change |
+| `Review` | Active technical/security review |
+| `Last Call` | Final objection window |
+| `Accepted` | Direction approved; implementation/evidence may still be required |
+| `Final` | Normative for the stated protocol/version/profile |
+| `Rejected` | Declined with rationale |
+| `Withdrawn` | Author withdrew the proposal |
+| `Stagnant` | Inactive and not current guidance |
+| `Superseded` | Replaced by newer normative guidance |
 
-A Standards Track AIP **cannot reach Final without a working reference implementation and
-passing conformance tests** (Doc 14).
+A Standards Track AIP must not be marked `Final` solely because documentation was merged. Where the proposal changes payment behavior, `Final` should require implementation/conformance evidence appropriate to the risk.
 
----
+## 3. Review Principles
 
-## 4. Governance Process
+A proposal should state:
 
-**4.1. Roles.**
-- **Author(s)** — write and champion the AIP.
-- **AIP Editors** — enforce formatting, assign numbers, manage status transitions
-  (process, not merit).
-- **Review Board** — domain maintainers (protocol, security, SDK, networks) who
-  evaluate technical merit and vote.
-- **Community** — anyone may comment; substantive objections must be addressed.
+- the problem;
+- exact protocol change;
+- affected route/protocol (`AIFP-1`, `AIFP-2`, etc.);
+- compatibility impact;
+- security impact;
+- migration plan;
+- implementation/test plan;
+- machine-readable surfaces affected;
+- deployment/rollout implications where relevant.
 
-**4.2. Decision rule.** Acceptance requires **rough consensus** of the Review Board with
-**no unresolved blocking security objection**. Security-categorized AIPs require explicit
-sign-off from the Security maintainer. Ties default to the **status quo** (reject).
+Financial/smart-contract changes need stronger independent review than editorial documentation changes.
 
-**4.3. Transparency.** All discussion happens in public (GitHub Discussions / PRs).
-Decisions are recorded in the AIP header (`Resolution:` link).
+## 4. Compatibility
 
----
+Classify changes by actual impact rather than by marketing/release preference:
 
-## 5. Versioning & Backward Compatibility
+- **PATCH:** editorial clarification with no change to machine behavior;
+- **MINOR:** backward-compatible optional capability;
+- **MAJOR:** breaking wire/behavior/security/economic change requiring migration.
 
-AIFP follows **semantic versioning** (`MAJOR.MINOR.PATCH`) at the protocol level:
+Changes to required request fields, payment semantics, receipt validation, fee routing, or transaction construction are generally not editorial changes.
 
-- **PATCH** — editorial/clarification; no wire change.
-- **MINOR** — backward-compatible additions (new optional field, new error code, new
-  network, new endpoint). Existing clients keep working.
-- **MAJOR** — breaking change. Requires a migration AIP, a deprecation window, and
-  parallel support of the previous MAJOR for **≥12 months**.
+## 5. Economics Changes
 
-**Compatibility rules (normative for any AIP):**
-1. New required request fields are a **breaking** change (MAJOR).
-2. New optional fields and new response fields are **non-breaking** (MINOR).
-3. Removing or renaming any field/endpoint/error is **breaking** (MAJOR).
-4. Receipt claim changes must preserve verification of previously issued receipts within
-   their TTL.
-5. The **Protocol Negotiation Layer** (AIFP-1 §22.3) MUST be used to gate any
-   capability that isn't universally available.
+Economic changes require explicit coordination because stale examples can cause real payment errors.
 
----
+An economics proposal must update, as applicable:
 
-## 6. Reference Implementation Rules
+1. AIFP-1 RFC;
+2. `docs/economics.md`;
+3. OpenAPI;
+4. JSON schemas/examples;
+5. Postman examples;
+6. SDK route policy;
+7. backend quote/verifier policy;
+8. contract/deployment profile;
+9. tests/conformance evidence;
+10. public developer documentation.
 
-- Every Standards Track AIP MUST link a reference implementation before **Final**.
-- The implementation MUST pass the AIFP **conformance test suite** (Doc 14) and update it
-  if new behavior is introduced.
-- Code examples in the AIP MUST match the OpenAPI spec (Doc 08), JSON Schemas (Doc 10),
-  and SDK Reference (Doc 11). Drift is a blocking review issue.
+### Current economics baseline
 
----
+As of the August 14, 2026 founder-approved model:
 
-## 7. Community Contributions & RFC Process
+| Route | Treasury | Creator/referral | Reference prices |
+|---|---:|---:|---|
+| AIFP-1 | `100` bps | `0` bps | `$0.0005 / $0.002 / $0.005` |
+| AIFP-2/x402 | `0` bps | `0` bps | provider-defined x402 payment amount |
 
-1. **Idea / RFC.** Open a Discussion describing the problem and proposed direction. Gather
-   early feedback (the lightweight "RFC" stage).
-2. **Draft AIP.** Fork the AIP template, fill all sections, open a PR. An Editor assigns
-   the next AIP number.
-3. **Review → Last Call → Accepted → Final.** Per §3.
-4. **Contributor License.** Contributions are licensed Apache-2.0 (Doc 13 §code style /
-   Doc 15 contribution guide). A DCO sign-off is required.
+Earlier AIFP-1 microcent prices and `100/1` examples are superseded current-product economics.
 
----
+## 6. Network / Deployment Proposals
+
+Adding a network to a repository or deploying a contract does not automatically make the network payment-live.
+
+A network/payment-profile AIP should distinguish:
+
+- source repository and canonical source commit;
+- deployed contract/program/address;
+- runtime/source provenance;
+- supported assets and decimals;
+- ABI/IDL/entrypoint;
+- active economic profile;
+- settlement verifier availability;
+- SDK/backend registry support;
+- end-to-end evidence.
+
+A proposal must not use a raw chain count as proof that all chains satisfy the current payment profile.
+
+## 7. Protocol Boundaries
+
+AIPs must preserve protocol separation unless they explicitly propose a cross-protocol change.
+
+Current boundaries relevant to this repository:
+
+- **AIFP-1:** merchant AI-traffic/resource monetization, current `100/0` profile;
+- **AIFP-2/x402:** separate agent-payment route, current `0/0` AiFinPay profile;
+- **AIFP-3:** Agent Passport / identity surface.
+
+Using HTTP `402` does not make an AIFP-1 message x402.
 
 ## 8. AIP Template
 
 ```markdown
 ---
-aip: <assigned by editors>
+aip: <number>
 title: <concise title>
-author: <name / handle / email>
+author: <name/handle>
 type: Standards Track | Meta | Informational
-category: Core | Interface | Networks | Security   # Standards Track only
+category: Core | Interface | Networks | Security | Economics
 status: Draft
 created: YYYY-MM-DD
-requires: <AIP numbers, optional>
-supersedes: <AIP number, optional>
+updated: YYYY-MM-DD
+requires: <optional>
+supersedes: <optional>
 ---
 
 ## Abstract
 ## Motivation
-## Specification        # normative; MUST/SHOULD/MAY (RFC 2119)
+## Specification
+## Protocol / Route Scope
 ## Backward Compatibility
-## Reference Implementation
+## Migration Plan
 ## Security Considerations
-## Test Cases
-## Copyright            # Apache-2.0
+## Reference Implementation
+## Test / Conformance Evidence
+## Deployment Considerations
+## Copyright
 ```
 
----
+## 9. Current Repository Examples
 
-## 9. Example AIPs
+### AIP-2 — Core Payment Protocol
 
-### AIP-1 — AIFP Improvement Proposal Process *(Meta, Final)*
-This document. Defines the process by which all other AIPs are created and ratified.
+AIP-2 records the current AIFP-1 merchant-monetization baseline. Its active economics must agree with the canonical AIFP-1 RFC and economics document: `$0.0005 / $0.002 / $0.005`, `100/0`, settlement verification before receipt issuance.
 
-### AIP-2 — Core Payment Protocol *(Standards Track · Core, Final)*
-**Abstract.** Ratifies AIFP-1 (Doc 01) as the normative protocol: HTTP-402 challenge,
-quote/pay/receipt loop, Ed25519 stateless receipts (TTL 600s), agent action pricing tiers
-(Standard from $0.00001 / Complex from $0.00006 / Premium from $0.00010), 1% AiFinPay
-protocol fee, merchant settlement of the remaining 99% excluding applicable network or
-settlement costs, idempotency (24h), and error registry. **Backward Compatibility:**
-baseline; nothing to break.
+### AIP-31 — Dynamic Pricing Reputation Discount Cap
 
-### AIP-7 — Add Unichain to Full Core Networks *(Standards Track · Networks, Final)*
-**Abstract.** Adds Unichain to the Full Core tier (Core + Passport + mSECCO + Pyth),
-bringing supported networks to **12**. **Spec:** add `unichain` to the `chain` enum
-(Doc 08/10), publish payout-address format, extend conformance vectors. **Backward
-Compatibility:** MINOR — new optional chain; existing clients unaffected.
+AIP-31 is now marked **Superseded**. Its prior dynamic ranges/reputation-discount assumptions are not current AIFP-1 pricing guidance. A future dynamic-pricing design requires a new or reactivated proposal with current economics and deterministic quote semantics.
 
-### AIP-12 — Agent Passport & Reputation Network *(Standards Track · Core, Final)*
-**Abstract.** Introduces `pp_*` Agent Passports with Ed25519 identity, reputation
-∈ [0,1000] (start 500), risk ∈ [0,100], and trust levels
-(untrusted/basic/verified/enterprise). Adds `POST /v1/passports`, `GET /v1/passports/{id}`.
-**Backward Compatibility:** MINOR — additive endpoints and optional challenge fields.
+## 10. Definition Of Done For A Standards Change
 
-### AIP-19 — `AIFP-403-BUDGET-EXCEEDED` Error *(Standards Track · Interface, Final)*
-**Abstract.** Adds a dedicated error for budget-policy breaches at `POST /v1/pay`.
-**Spec:** new code in the registry (Doc 01 App. C / Doc 08). **Backward Compatibility:**
-MINOR — new error code under existing `403` semantics.
+Before a payment-affecting AIP is considered complete:
 
-### AIP-23 — Streaming Payments via mSECCO Channels *(Standards Track · Core, Accepted)*
-**Abstract.** Defines payment channels for high-frequency metered consumption with escrow
-bound to the Agent Passport. **Status:** Accepted; awaiting reference implementation +
-conformance vectors before Final. **Backward Compatibility:** MINOR — opt-in capability
-gated by Protocol Negotiation.
+- normative text and machine-readable contracts agree;
+- stale contradictory examples are removed or explicitly marked historical;
+- implementation is linked to exact commits/versions;
+- relevant tests pass;
+- security review is complete at the appropriate risk level;
+- deployment/profile changes are traceable;
+- end-to-end evidence exists for any new payment-live claim;
+- rollback/migration behavior is documented.
 
-### AIP-31 — Dynamic Pricing Reputation Discount Cap *(Informational)*
-**Abstract.** Recommends clamping dynamic prices to `[min,max]` and capping
-reputation-based discounts at **−30%** to prevent gaming. Non-binding guidance for
-merchants implementing the Dynamic Pricing Engine.
+## 11. Copyright
 
----
-
-## 10. Copyright
-
-This document and all AIPs are released under **Apache-2.0**.
+Unless a file states otherwise, AIP code artifacts use the repository code license and documentation uses the repository documentation license.

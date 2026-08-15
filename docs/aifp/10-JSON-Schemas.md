@@ -1,91 +1,85 @@
-# AIFP JSON Schemas
+# AIFP-1 JSON Schema Contract
 
-**Document:** AIFP-DOC-10 · **Status:** Conforming Artifact · **Governed by:** AIFP-1 (Doc 01)  
-**Spec dialect:** JSON Schema 2020-12 · **Base `$id`:** `https://schemas.aifinpay.io/v1/`
+**Document:** AIFP-DOC-10  
+**Status:** Draft conforming artifact  
+**Schema dialect:** JSON Schema 2020-12  
+**Governed by:** [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
 
-> These schemas are the canonical machine-readable definitions of every AIFP protocol object. They MUST stay byte-consistent with the OpenAPI 3.1 components, the AIFP-1 normative spec, and the current protocol pricing model. Where documents differ, **AIFP-1 governs**.
+This document defines the current machine-readable object shapes required by the AIFP-1 merchant-monetization profile. It intentionally excludes AIFP-2/x402 and AIFP-3 Agent Passport objects; those are separate protocol surfaces.
 
-Each schema below is independently publishable as a `.json` file under the `$id` base. A consolidated bundle is provided in [`/schemas/aifp.bundle.json`](#bundle).
+## Current Economics
 
----
+| Field | AIFP-1 value |
+|---|---:|
+| `standard` reference action | `$0.0005` |
+| `complex` reference action | `$0.002` |
+| `premium` reference action | `$0.005` |
+| `protocolFeeRate` | `0.01` |
+| `merchantSettlementRate` | `0.99` |
+| `creatorFeeRate` | `0` |
+| `treasury_bps` | `100` |
+| `creator_bps` | `0` |
 
-## Index
-
-| Object | `$id` | Source of truth |
-|---|---|---|
-| Payment Challenge | `payment-challenge.json` | AIFP-1 §6 |
-| Quote | `quote.json` | AIFP-1 §16.1 |
-| Receipt Token (claims) | `receipt-token.json` | AIFP-1 §7.3 |
-| Receipt (envelope) | `receipt.json` | AIFP-1 §16.2 |
-| Merchant | `merchant.json` | AIFP-1 §11 |
-| Wallet | `wallet.json` | AIFP-1 §13 |
-| Passport | `passport.json` | AIFP-1 §24, §10.2; Doc 03 §9 |
-| Payment | `payment.json` | AIFP-1 §16.2 |
-| Settlement | `settlement.json` | AIFP-1 §19 |
-| Webhook | `webhook.json` | AIFP-1 §9.4 |
-| Error | `error.json` | AIFP-1 §17.2 |
+AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from these schemas.
 
 ---
 
-## Pricing Contract
-
-| Tier | Minimum amount | Intended use |
-|---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request. |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute. |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data. |
-
-The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining `99%` is settled to the merchant, excluding any applicable payment-network or settlement costs.
-
----
-
-## Shared definitions (`$defs`)
+## Common Definitions
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/common.json",
-  "title": "AIFP Common Definitions",
+  "$id": "https://schemas.aifinpay.io/aifp-1/common.json",
+  "title": "AIFP-1 Common Definitions",
   "$defs": {
+    "routeClass": {
+      "type": "string",
+      "const": "AIFP-1"
+    },
     "pricingTier": {
       "type": "string",
-      "enum": ["standard", "complex", "premium"],
-      "description": "Protocol pricing tier for the requested action."
+      "enum": ["standard", "complex", "premium"]
     },
-    "tierMinimumAmount": {
+    "referenceActionPrice": {
       "type": "string",
-      "enum": ["0.00001", "0.00006", "0.00010"],
-      "description": "Minimum USD amount for the selected pricing tier."
+      "enum": ["0.0005", "0.002", "0.005"]
+    },
+    "decimalAmount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "examples": ["0.0005", "0.002", "0.005", "1", "10.25"]
     },
     "protocolFeeRate": {
-      "type": "number",
-      "const": 0.01,
-      "description": "AiFinPay Protocol Fee: 1% of each successful transaction."
+      "type": "string",
+      "const": "0.01"
     },
     "merchantSettlementRate": {
-      "type": "number",
-      "const": 0.99,
-      "description": "Merchant settlement share before external network or settlement costs."
-    },
-    "asset": { "type": "string", "enum": ["USDC", "USDT", "PYUSD"] },
-    "chain": {
       "type": "string",
-      "enum": ["solana", "polygon", "avalanche", "bnb", "optimism", "arbitrum", "base", "unichain", "bot_chain", "xrpl_evm", "near", "aptos"]
+      "const": "0.99"
     },
-    "decimalUsd": { "type": "string", "pattern": "^[0-9]+\\.[0-9]{2,8}$", "examples": ["0.00001", "0.00006", "0.00010"], "description": "Per-request micropayment amount (2-8 fractional digits, no whole-dollar form)." },
-    "monetaryUsd": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,8})?$", "examples": ["0.00001", "50.00", "100", "5"], "description": "Larger monetary value (settlement, payout, budget cap). Allows whole-dollar amounts; fractional part optional, 1-8 digits." },
-    "merchantId": { "type": "string", "pattern": "^mrch_[A-Za-z0-9]+$" },
-    "agentId": { "type": "string", "pattern": "^agt_[A-Za-z0-9]+$" },
-    "walletId": { "type": "string", "pattern": "^wlt_[A-Za-z0-9]+$" },
-    "quoteId": { "type": "string", "pattern": "^qt_[A-Za-z0-9]+$" },
-    "receiptId": { "type": "string", "pattern": "^rcpt_[A-Za-z0-9]+$" },
-    "passportId": { "type": "string", "pattern": "^pp_[A-Za-z0-9]+$" },
-    "nonce": {
+    "creatorFeeRate": {
       "type": "string",
-      "minLength": 22,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9_-]+$",
-      "description": "Single-use anti-replay value, >=128 bits entropy from a CSPRNG (AIFP-1 §6.4, §18.3). Minimum 22 chars (base64url of 128 bits) or 32 chars (hex of 128 bits). The nonce MUST be identical across the challenge, quote, and receipt."
+      "const": "0"
+    },
+    "treasuryBps": {
+      "type": "integer",
+      "const": 100
+    },
+    "creatorBps": {
+      "type": "integer",
+      "const": 0
+    },
+    "merchantId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "quoteId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1
     }
   }
 }
@@ -93,310 +87,252 @@ The AiFinPay Protocol Fee is `1%` of every successful transaction. The remaining
 
 ---
 
-## Payment Challenge
+## AIFP-1 Payment Challenge
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/payment-challenge.json",
-  "title": "AIFP Payment Challenge",
-  "description": "Body returned with HTTP 402 (AIFP-1 §6).",
+  "$id": "https://schemas.aifinpay.io/aifp-1/payment-challenge.json",
+  "title": "AIFP-1 Payment Challenge",
   "type": "object",
-  "required": ["version", "scheme", "merchant_id", "resource", "pricing_tier", "currency", "nonce", "expires_at", "quote_endpoint"],
+  "required": ["protocol", "merchant_id", "resource", "pricing_tier", "quote_endpoint"],
   "properties": {
-    "version": { "type": "string", "const": "1.0" },
-    "scheme": { "type": "string", "const": "aifp" },
-    "merchant_id": { "$ref": "common.json#/$defs/merchantId" },
-    "resource": { "type": "string" },
-    "pricing_tier": { "$ref": "common.json#/$defs/pricingTier" },
-    "estimated_amount": { "$ref": "common.json#/$defs/decimalUsd", "description": "Decimal USD estimate (SHOULD; not binding — use /quote for a binding amount)." },
-    "currency": { "type": "string", "const": "USD" },
-    "accepted_assets": { "type": "array", "items": { "$ref": "common.json#/$defs/asset" } },
-    "accepted_chains": { "type": "array", "items": { "$ref": "common.json#/$defs/chain" } },
-    "nonce": { "$ref": "common.json#/$defs/nonce" },
-    "expires_at": { "type": "string", "format": "date-time" },
-    "quote_endpoint": { "type": "string", "format": "uri", "description": "Where the agent requests a binding quote (AIFP-1 §6)." },
-    "onboarding": { "type": "boolean", "default": false, "description": "true -> AIFP-402-ONBOARDING" }
-  },
-  "additionalProperties": false
-}
-```
-
----
-
-## Quote
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/quote.json",
-  "title": "AIFP Quote",
-  "type": "object",
-  "required": ["quote_id", "merchant_id", "resource", "pricing_tier", "amount", "currency", "nonce", "expires_at"],
-  "properties": {
-    "quote_id": { "$ref": "common.json#/$defs/quoteId" },
-    "merchant_id": { "$ref": "common.json#/$defs/merchantId" },
-    "resource": { "type": "string" },
-    "pricing_tier": { "$ref": "common.json#/$defs/pricingTier" },
-    "amount": { "$ref": "common.json#/$defs/decimalUsd" },
-    "currency": { "type": "string", "const": "USD" },
-    "accepted_assets": { "type": "array", "items": { "$ref": "common.json#/$defs/asset" } },
-    "accepted_chains": { "type": "array", "items": { "$ref": "common.json#/$defs/chain" } },
-    "pay_to": { "type": "object", "additionalProperties": { "type": "string" } },
-    "nonce": { "$ref": "common.json#/$defs/nonce" },
+    "protocol": { "type": "string", "const": "AIFP-1" },
+    "merchant_id": { "type": "string", "minLength": 1 },
+    "resource": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string" },
+    "pricing_tier": { "type": "string", "enum": ["standard", "complex", "premium"] },
+    "reference_price_usd": { "type": "string", "enum": ["0.0005", "0.002", "0.005"] },
+    "quote_endpoint": { "type": "string", "format": "uri" },
     "expires_at": { "type": "string", "format": "date-time" }
   },
+  "additionalProperties": true
+}
+```
+
+The challenge is informational. The **binding Quote** controls the actual settlement amount and route.
+
+---
+
+## Quote Request
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aifinpay.io/aifp-1/quote-request.json",
+  "title": "AIFP-1 Quote Request",
+  "type": "object",
+  "required": ["merchant_id", "resource", "pricing_tier"],
+  "properties": {
+    "merchant_id": { "type": "string", "minLength": 1 },
+    "resource": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string" },
+    "pricing_tier": { "type": "string", "enum": ["standard", "complex", "premium"] },
+    "units": { "type": "integer", "minimum": 1, "default": 1 },
+    "preferred_asset": { "type": "string" },
+    "preferred_chain": { "type": "string" }
+  },
   "additionalProperties": false
 }
 ```
 
 ---
 
-## Receipt Token (JWT claims)
+## Binding Quote
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/receipt-token.json",
-  "title": "AIFP Receipt Token Claims",
-  "description": "Decoded Ed25519 JWT claim set (AIFP-1 §7.3). Header alg MUST be EdDSA.",
+  "$id": "https://schemas.aifinpay.io/aifp-1/quote.json",
+  "title": "AIFP-1 Binding Quote",
   "type": "object",
-  "required": ["iss", "sub", "aud", "resource", "amount", "nonce", "iat", "exp", "kid"],
+  "required": [
+    "quote_id",
+    "protocol",
+    "route_class",
+    "merchant_id",
+    "resource",
+    "merchant_amount",
+    "treasury_bps",
+    "creator_bps",
+    "asset",
+    "chain",
+    "expires_at"
+  ],
   "properties": {
-    "iss": { "type": "string", "const": "https://api.aifinpay.io" },
-    "sub": { "$ref": "common.json#/$defs/agentId" },
-    "aud": { "$ref": "common.json#/$defs/merchantId" },
+    "quote_id": { "type": "string", "minLength": 1 },
+    "protocol": { "type": "string", "const": "AIFP-1" },
+    "route_class": { "type": "string", "const": "AIFP-1" },
+    "merchant_id": { "type": "string", "minLength": 1 },
+    "resource": { "type": "string", "minLength": 1 },
+    "scope": { "type": "string" },
+    "pricing_tier": { "type": "string", "enum": ["standard", "complex", "premium"] },
+    "merchant_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "total_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "currency": { "type": "string", "default": "USD" },
+    "treasury_bps": { "type": "integer", "const": 100 },
+    "creator_bps": { "type": "integer", "const": 0 },
+    "asset": { "type": "string", "minLength": 1 },
+    "chain": { "type": "string", "minLength": 1 },
+    "settlement_target": { "type": "string" },
+    "payment_id": { "type": "string" },
+    "order_id": { "type": "string" },
+    "verifier_profile": { "type": "string" },
+    "expires_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}
+```
+
+A quote MUST NOT be returned as payable if the selected route cannot be verified by the active settlement verifier.
+
+---
+
+## Pay Request
+
+The payer executes settlement outside the receipt service and submits the resulting reference for verification.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aifinpay.io/aifp-1/pay-request.json",
+  "title": "AIFP-1 Pay Request",
+  "type": "object",
+  "required": ["quote_id", "chain", "asset", "tx_ref"],
+  "properties": {
+    "quote_id": { "type": "string", "minLength": 1 },
+    "chain": { "type": "string", "minLength": 1 },
+    "asset": { "type": "string", "minLength": 1 },
+    "tx_ref": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}
+```
+
+A private key, recovery phrase, or raw signing secret MUST NOT be part of this request schema.
+
+---
+
+## Receipt Envelope
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.aifinpay.io/aifp-1/receipt.json",
+  "title": "AIFP-1 Receipt Envelope",
+  "type": "object",
+  "required": [
+    "receipt_id",
+    "protocol",
+    "route_class",
+    "merchant_id",
+    "status",
+    "receipt",
+    "issued_at",
+    "expires_at"
+  ],
+  "properties": {
+    "receipt_id": { "type": "string", "minLength": 1 },
+    "protocol": { "type": "string", "const": "AIFP-1" },
+    "route_class": { "type": "string", "const": "AIFP-1" },
+    "merchant_id": { "type": "string", "minLength": 1 },
     "resource": { "type": "string" },
-    "pricing_tier": { "$ref": "common.json#/$defs/pricingTier" },
-    "amount": { "$ref": "common.json#/$defs/decimalUsd" },
-    "currency": { "type": "string", "const": "USD" },
-    "asset": { "$ref": "common.json#/$defs/asset" },
-    "chain": { "$ref": "common.json#/$defs/chain" },
+    "scope": { "type": "string" },
+    "quote_id": { "type": "string" },
     "tx_ref": { "type": "string" },
-    "receipt_id": { "$ref": "common.json#/$defs/receiptId" },
-    "nonce": { "$ref": "common.json#/$defs/nonce" },
-    "iat": { "type": "integer" },
-    "exp": { "type": "integer", "description": "Default TTL 600s after iat." },
-    "kid": { "type": "string", "examples": ["aifp-2026-06"] },
-    "quota": { "type": "integer", "minimum": 1, "description": "Optional multi-use claim (AIFP-1 §7.5). When present, the receipt grants `quota` redemptions for the same resource within its TTL; the nonce is consumed on the final use. Absent = single-use (default)." }
+    "merchant_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "treasury_bps": { "type": "integer", "const": 100 },
+    "creator_bps": { "type": "integer", "const": 0 },
+    "status": { "type": "string", "enum": ["settled", "final"] },
+    "receipt": { "type": "string", "minLength": 1 },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
 ```
 
+A receipt may only be created after the settlement verifier confirms the binding quote.
+
 ---
 
-## Receipt (API envelope)
+## Pending Settlement
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/receipt.json",
-  "title": "AIFP Receipt Envelope",
+  "$id": "https://schemas.aifinpay.io/aifp-1/pending-settlement.json",
+  "title": "AIFP-1 Pending Settlement",
   "type": "object",
-  "required": ["receipt_id", "status"],
+  "required": ["status"],
   "properties": {
-    "receipt_id": { "$ref": "common.json#/$defs/receiptId" },
-    "receipt": { "type": "string", "description": "Compact EdDSA JWT." },
-    "status": { "type": "string", "enum": ["settled", "settling", "expired", "revoked"] },
-    "tx_ref": { "type": "string" },
-    "amount": { "$ref": "common.json#/$defs/decimalUsd" },
-    "protocol_fee_rate": { "$ref": "common.json#/$defs/protocolFeeRate" },
-    "merchant_settlement_rate": { "$ref": "common.json#/$defs/merchantSettlementRate" },
-    "protocol_fee_amount": { "$ref": "common.json#/$defs/monetaryUsd" },
-    "merchant_settlement_amount": { "$ref": "common.json#/$defs/monetaryUsd" },
-    "expires_at": { "type": "string", "format": "date-time" },
-    "poll": { "type": "string", "description": "Present on 202 async settlement." }
+    "status": { "type": "string", "const": "pending" },
+    "receipt_id": { "type": "string" },
+    "retry_after_seconds": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }
 ```
 
+Pending is not equivalent to verified or paid. Protected access MUST NOT be granted unless the active receipt/finality policy permits it.
+
 ---
 
-## Merchant
+## Assisted Verify Request
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/merchant.json",
-  "title": "AIFP Merchant",
+  "$id": "https://schemas.aifinpay.io/aifp-1/verify-request.json",
+  "title": "AIFP-1 Assisted Verify Request",
   "type": "object",
-  "required": ["merchant_id", "name", "created_at"],
+  "required": ["receipt", "merchant_id", "resource"],
   "properties": {
-    "merchant_id": { "$ref": "common.json#/$defs/merchantId" },
-    "name": { "type": "string" },
-    "settlement_mode": { "type": "string", "enum": ["stablecoin", "fiat", "hybrid"] },
-    "protocol_fee_rate": { "$ref": "common.json#/$defs/protocolFeeRate" },
-    "merchant_settlement_rate": { "$ref": "common.json#/$defs/merchantSettlementRate" },
-    "resources": { "type": "object", "additionalProperties": { "$ref": "common.json#/$defs/pricingTier" } },
-    "created_at": { "type": "string", "format": "date-time" }
+    "receipt": { "type": "string", "minLength": 1 },
+    "merchant_id": { "type": "string", "minLength": 1 },
+    "resource": { "type": "string", "minLength": 1 },
+    "required_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" }
   },
   "additionalProperties": false
 }
 ```
 
+Merchant implementations SHOULD verify receipts locally where supported. Assisted verification is an optional compatibility surface, not a substitute for pre-receipt settlement verification.
+
 ---
 
-## Wallet
+## Error Object
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/wallet.json",
-  "title": "AIFP Wallet",
-  "type": "object",
-  "required": ["wallet_id", "agent_id", "type"],
-  "properties": {
-    "wallet_id": { "$ref": "common.json#/$defs/walletId" },
-    "agent_id": { "$ref": "common.json#/$defs/agentId" },
-    "type": { "type": "string", "enum": ["custodial", "non_custodial"] },
-    "balances": { "type": "object", "additionalProperties": { "type": "string" } },
-    "budget": {
-      "type": "object",
-      "properties": {
-        "window": { "type": "string", "enum": ["hour", "day", "week", "month"] },
-        "cap_usd": { "$ref": "common.json#/$defs/monetaryUsd" }
-      }
-    }
-  },
-  "additionalProperties": false
-}
-```
-
----
-
-## Passport
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/passport.json",
-  "title": "AIFP Agent Passport",
-  "type": "object",
-  "required": ["passport_id", "agent_id", "reputation", "risk", "trust_level"],
-  "properties": {
-    "passport_id": { "$ref": "common.json#/$defs/passportId" },
-    "agent_id": { "$ref": "common.json#/$defs/agentId" },
-    "public_key": { "type": "string", "description": "Ed25519 public key (base64url)." },
-    "reputation": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 500 },
-    "risk": { "type": "integer", "minimum": 0, "maximum": 100 },
-    "trust_level": { "type": "string", "enum": ["untrusted", "basic", "verified", "enterprise"] },
-    "created_at": { "type": "string", "format": "date-time" }
-  },
-  "additionalProperties": false
-}
-```
-
----
-
-## Payment
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/payment.json",
-  "title": "AIFP Payment Request",
-  "type": "object",
-  "required": ["quote_id", "wallet_id", "asset", "chain"],
-  "properties": {
-    "quote_id": { "$ref": "common.json#/$defs/quoteId" },
-    "wallet_id": { "$ref": "common.json#/$defs/walletId" },
-    "asset": { "$ref": "common.json#/$defs/asset" },
-    "chain": { "$ref": "common.json#/$defs/chain" }
-  },
-  "additionalProperties": false
-}
-```
-
----
-
-## Settlement
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/settlement.json",
-  "title": "AIFP Settlement",
-  "type": "object",
-  "required": ["receipt_id", "status", "rail"],
-  "properties": {
-    "receipt_id": { "$ref": "common.json#/$defs/receiptId" },
-    "status": { "type": "string", "enum": ["pending", "confirmed", "failed"] },
-    "rail": { "type": "string", "enum": ["stablecoin", "fiat"] },
-    "chain": { "$ref": "common.json#/$defs/chain" },
-    "tx_ref": { "type": "string" },
-    "confirmations": { "type": "integer", "minimum": 0 }
-  },
-  "additionalProperties": false
-}
-```
-
----
-
-## Webhook
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/webhook.json",
-  "title": "AIFP Webhook Event",
-  "type": "object",
-  "required": ["id", "type", "created", "data"],
-  "properties": {
-    "id": { "type": "string", "examples": ["evt_2a9f"] },
-    "type": {
-      "type": "string",
-      "enum": ["payment.succeeded", "payment.pending", "payment.failed", "receipt.issued", "receipt.redeemed", "receipt.expired", "receipt.revoked", "settlement.completed", "payout.completed", "dispute.opened", "passport.updated"]
-    },
-    "created": { "type": "integer" },
-    "data": { "type": "object" }
-  },
-  "additionalProperties": false
-}
-```
-
-> **Signature:** Webhook deliveries carry `AIFP-Signature: t=<ts>,v1=<hmac>` (**HMAC-SHA256** over the raw body, using a per-merchant shared secret). Verify the HMAC and the timestamp (5-minute replay window) before trusting the payload. This is a symmetric signature — merchants do NOT need to fetch JWKS to verify webhooks (AIFP-1 §9.4, §18.4).
-
----
-
-## Error
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.aifinpay.io/v1/error.json",
-  "title": "AIFP Error",
+  "$id": "https://schemas.aifinpay.io/aifp-1/error.json",
+  "title": "AIFP-1 Error",
   "type": "object",
   "required": ["error"],
   "properties": {
-    "error": {
-      "type": "object",
-      "required": ["type", "code", "message"],
-      "properties": {
-        "type": { "type": "string" },
-        "code": {
-          "type": "string",
-          "enum": ["AIFP-400", "AIFP-401", "AIFP-402", "AIFP-402-ONBOARDING", "AIFP-403", "AIFP-403-BUDGET-EXCEEDED", "AIFP-404", "AIFP-409", "AIFP-410", "AIFP-422-SIGNATURE", "AIFP-422-AMOUNT", "AIFP-425", "AIFP-429", "AIFP-5xx"]
-        },
-        "message": { "type": "string" },
-        "request_id": { "type": "string" },
-        "doc": { "type": "string", "format": "uri" }
-      },
-      "additionalProperties": false
-    }
+    "error": { "type": "string" },
+    "detail": { "type": "string" },
+    "request_id": { "type": "string" }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
 ```
 
 ---
 
-## Bundle
+## Conformance Rules
 
-For tooling that prefers a single file, publish `schemas/aifp.bundle.json` with all the above under a top-level `$defs`, each entry retaining its `$id`. Validation tooling (Ajv 2020, `check-jsonschema`, `quicktype`) MUST resolve `$ref`s against the `https://schemas.aifinpay.io/v1/` base.
+Machine-readable AIFP-1 artifacts are conformant only if they agree on all of the following:
 
-```bash
-# Validate an example receipt envelope against the schema
-npx ajv-cli validate -s webhook.json -d examples/settlement.completed.json --spec=draft2020
-```
+1. protocol/route class is `AIFP-1`;
+2. standard preset prices are `$0.0005 / $0.002 / $0.005`;
+3. `protocolFeeRate = 0.01` and `treasury_bps = 100`;
+4. `creatorFeeRate = 0` and `creator_bps = 0`;
+5. `merchantSettlementRate = 0.99` before external network/settlement costs;
+6. payer settlement reference is verified before receipt issuance;
+7. no private signing key is sent to the receipt service;
+8. unsupported or unverifiable settlement routes fail before payment;
+9. AIFP-2/x402 `0/0` is not silently represented as AIFP-1.
+
+Legacy schema examples using `$0.00001 / $0.00006 / $0.00010` or `100/1` are superseded and must not be used for current integration generation.

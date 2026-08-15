@@ -7,11 +7,35 @@ on:
       - ".github/workflows/markdown-lint.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: markdownlint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Run markdownlint
-        run: npx --yes markdownlint-cli2 "**/*.md" "!node_modules"
+        id: markdownlint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx --yes markdownlint-cli2 "**/*.md" "!node_modules" 2>&1 | tee markdownlint-report.txt
+
+      - name: Upload markdownlint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdownlint-report
+          path: markdownlint-report.txt
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce markdownlint result
+        if: steps.markdownlint.outcome == 'failure'
+        run: |
+          echo "markdownlint reported violations; inspect markdownlint-report artifact."
+          exit 1

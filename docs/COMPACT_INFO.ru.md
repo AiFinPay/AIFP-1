@@ -2,11 +2,11 @@
 
 ## Общее устройство
 
-AIFP-1 — это платёжный протокол для AI-агентов, который работает на **двух уровнях**:
+AIFP-1 — это протокол монетизации AI-трафика и платного доступа для AI-агентов, который использует HTTP `402 Payment Required` как сигнал необходимости оплаты.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│          Внешний слой: HTTP + x402                  │
+│          Внешний слой: HTTP 402 / AIFP-1           │
 │  402 Challenge → Quote → Pay → Receipt → Retry      │
 │  Агент ←→ Мерчант ←→ AiFinPay Gateway               │
 └──────────────────────┬──────────────────────────────┘
@@ -19,11 +19,13 @@ AIFP-1 — это платёжный протокол для AI-агентов, 
 └─────────────────────────────────────────────────────┘
 ```
 
+AIFP-1 и AIFP-2/x402 — разные экономические профили. AIFP-1 монетизирует действия агента у мерчанта и использует профиль `100/0` (1% AiFinPay, 0% creator/referral). AIFP-2/x402 — отдельный маршрут агентских платежей с профилем `0/0`.
+
 ---
 
-## Уровень 1: HTTP + x402 (внешний)
+## Уровень 1: HTTP 402 / AIFP-1 (внешний)
 
-Это протокол для взаимодействия **агент → мерчант**. Работает на чистом HTTP.
+Это протокол для взаимодействия **агент → мерчант**. Работает на HTTP `402 Payment Required` и собственном AIFP-1 challenge/quote/receipt flow.
 
 ### Полный цикл оплаты
 
@@ -33,14 +35,14 @@ AIFP-1 — это платёжный протокол для AI-агентов, 
   |-- GET /api/data ------------->|                          |
   |                               |-- проверка квоты         |
   |                               |-- квота закончилась      |
-  |<-- 402 + Challenge -----------|                          |
+  |<-- 402 + AIFP-1 Challenge ----|                          |
   |                               |                          |
   |-- POST /v1/quote ------------------------------->|       |
   |<-- Quote {amount, nonce} -------------------------|       |
   |                               |                          |
-  |-- POST /v1/pay {Idempotency-Key} -------------->|        |
-  |                               |                          |-- списание
-  |                               |                          |-- settlement
+  |-- подписывает/отправляет settlement своей wallet         |
+  |-- POST /v1/pay {tx_ref, Idempotency-Key} ------>|        |
+  |                               |                          |-- verify settlement
   |<-- Receipt Token (JWT) --------------------------|       |
   |                               |                          |
   |-- GET /api/data ------------->|                          |
@@ -55,35 +57,31 @@ AIFP-1 — это платёжный протокол для AI-агентов, 
 
 | Концепция | Описание |
 |---|---|
-| **402 Payment Required** | HTTP-статус, который говорит «нужна оплата». Активирован из резерва HTTP/1.1 |
-| **Payment Challenge** | JSON в теле 402: куда платить, сколько, nonce, срок |
+| **402 Payment Required** | HTTP-статус, который говорит «нужна оплата» |
+| **Payment Challenge** | Машиночитаемый AIFP-1 challenge: куда платить, сколько, nonce, срок |
 | **Quote** | Фиксированная цена на конкретный ресурс. Короткий TTL (300с) |
 | **Receipt Token** | JWT, подписанный Ed25519. Содержит: iss, aud, resource, amount, nonce, exp |
-| **Stateless Verification** | Мерчант проверяет receipt локально по подписи. **Не обращается к AiFinPay** |
-| **Nonce Store** | Redis SET NX EX. Атомарная операция. TTL = 600с. Защита от replay |
-| **Idempotency-Key** | UUID v4 в заголовке. Окно 24ч. Защита от двойного списания |
+| **Stateless Verification** | Мерчант проверяет receipt локально по подписи. **Не обращается к AiFinPay** для каждой проверки |
+| **Nonce Store** | Атомарное хранилище nonce с TTL. Защита от replay |
+| **Idempotency-Key** | UUID v4 в заголовке. Окно 24ч. Защита от двойной обработки |
 
-### Почему stateless verification — это главное решение
+### Проверка receipt
 
-Ed25519 верификация ≈ **50,000 операций/сек на ядро**. Мерчант не зависит от доступности AiFinPay. Даже если бэкэнд AiFinPay упал, уже выданные receipts продолжают работать до истечения TTL.
+1. **Signature** — Ed25519 через JWKS (EdDSA only, `alg:none` запрещён)
+2. **Issuer** — `iss == AiFinPay`
+3. **Audience** — `aud == merchant_id`
+4. **Resource** — receipt покрывает запрошенный resource/scope
+5. **Amount / quota** — достаточно оплаченного лимита; денежные значения сравниваются как Decimal/целые minor units, не float
+6. **Expiry** — `now < exp` с ограниченным clock skew
+7. **Nonce / replay state** — receipt не должен быть использован вне разрешённой модели повторного доступа/квоты
 
-### Часы проверки receipt
-
-1. **Signature** — Ed25519 через JWKS (EdDSA only, alg:none запрещён)
-2. **Issuer** — iss == AiFinPay
-3. **Audience** — aud == merchant_id
-4. **Resource** — resource == запрошенный путь
-5. **Amount** — amount >= required_price (Decimal, НЕ float!)
-6. **Expiry** — now < exp (skew ≤ 5с)
-7. **Nonce** — не использован (atomic SET NX EX)
-
-Любая проверка не прошла → конкретный HTTP-статус (402/403/409/422).
+Любая обязательная проверка не прошла → запрос отклоняется fail-closed.
 
 ---
 
 ## Уровень 2: ACP (внутренний)
 
-Это протокол для взаимодействия **агент ↔ агент**. Структурированные JSON-сообщения, не HTTP-запросы.
+Это протокол для структурированного взаимодействия **агент ↔ агент**. Он может переносить AIFP-1 payment challenge/receipt metadata, но не превращает AIFP-1 в x402.
 
 ### Формат сообщения
 
@@ -103,7 +101,7 @@ Ed25519 верификация ≈ **50,000 операций/сек на ядр�
     "action": "search",
     "resource": "/api/company?q=Acme",
     "pricing_tier": "complex",
-    "max_price_usd": "0.00010"
+    "max_price_usd": "0.005"
   }
 }
 ```
@@ -113,7 +111,7 @@ Ed25519 верификация ≈ **50,000 операций/сек на ядр�
 | Тип | Кто отправляет | Что означает |
 |---|---|---|
 | **request** | Агент A → Агент B | «Сделай действие, я заплачу» |
-| **challenge** | Агент B → Агент A | «Квота закончилась, заплати» (содержит x402 challenge) |
+| **challenge** | Агент B → Агент A | «Нужна оплата» (содержит AIFP-1 payment challenge) |
 | **payment** | Агент A → Агент B | «Я заплатил, вот receipt» |
 | **response** | Агент B → Агент A | «Вот результат работы» |
 | **status** | Агент B → Агент A | «Прогресс 45%, осталось 15с» (опционально) |
@@ -125,33 +123,32 @@ Ed25519 верификация ≈ **50,000 операций/сек на ядр�
    |                                        |
    |-- ACP Request (action, resource) ----->|
    |                                        |-- проверка квоты
-   |                                        |-- квота закончилась
-   |<-- ACP Challenge (x402 payload) -------|
+   |                                        |-- требуется оплата
+   |<-- ACP Challenge (AIFP-1 payload) -----|
    |                                        |
-   |-- POST /v1/quote --------------------->|--> AiFinpay Gateway
+   |-- POST /v1/quote --------------------->|--> AiFinPay Gateway
    |<-- Quote ------------------------------|<--
    |                                        |
-   |-- POST /v1/pay ----------------------->|--> AiFinpay Gateway
-   |    (Idempotency-Key)                   |
+   |-- settle from agent wallet             |
+   |-- POST /v1/pay {tx_ref} -------------->|--> AiFinPay Gateway
    |<-- Receipt Token ----------------------|<--
    |                                        |
    |-- ACP Payment (receipt + request) ---->|
-   |                                        |-- verify receipt (Ed25519)
-   |                                        |-- consume nonce (atomic)
+   |                                        |-- verify receipt
    |<-- ACP Response (результат) -----------|
 ```
 
-Агент B одновременно выступает и **агентом** (как клиент AiFinPay), и **мерчантом** (принимает оплату от A). Его `agent_id` = `merchant_id` в receipt.
+Агент B может одновременно выступать и **агентом**, и **мерчантом**. Идентификаторы agent/merchant должны быть связаны явно и проверяемо; не следует предполагать их равенство без правила протокола.
 
 ### Discovery
 
-Каждый агент, принимающий ACP, обязан отвечать на:
+Каждый агент, принимающий ACP, может публиковать machine-readable discovery document:
 
 ```
 GET /.well-known/agent.json
 ```
 
-Ответ:
+Пример:
 
 ```json
 {
@@ -162,7 +159,7 @@ GET /.well-known/agent.json
     {
       "action": "search",
       "pricing_tiers": ["standard", "complex"],
-      "max_price_usd": "0.00010",
+      "max_price_usd": "0.005",
       "accepted_assets": ["USDC", "USDT"],
       "accepted_chains": ["polygon", "base"]
     }
@@ -178,56 +175,42 @@ GET /.well-known/agent.json
 | **HTTP POST** | Запрос/ответ через обычный HTTP |
 | **WebSocket** | Двунаправленный стрим для долгих задач |
 | **SSE** | Прогресс-уведомления от сервера к клиенту |
-| **P2P (libp2p)** | Прямое агент↔агент без инфраструктуры |
+| **P2P (libp2p)** | Возможный прямой агент↔агент транспорт; требует отдельной реализации/проверки |
 
 ---
 
 ## Внутренний бэкэнд AiFinPay
 
-Бэкэнд AiFinPay состоит из микросервисов, общающихся через ACP:
+Логически AIFP-1 включает сервисы quote, settlement verification, receipt issuance, ledger/reconciliation и merchant integration. Конкретная production-топология является реализационной деталью, а не гарантией протокола.
 
 ```
 ┌────────────────────────────────────────────────┐
 │              AiFinPay Control Plane             │
 │                                                 │
-│  Quote Service ←ACP→ Pay Engine                │
+│  Quote Service ←→ Settlement Verification      │
 │       ↓                    ↓                    │
-│  Settlement Adapter ←ACP→ Receipt Authority    │
+│  Receipt Authority ←→ Ledger/Reconciliation    │
 │       ↓                    ↓                    │
-│  Blockchain/Fiat Rails   Ledger                 │
-│                                                 │
-│  JWKS Service ←→ Key Rotation (HSM/KMS)        │
-│  Webhook Service ←→ Merchant Endpoints         │
-│  Passport Service ←→ Agent Identity             │
+│  JWKS Service          Webhook Service          │
 └────────────────────────────────────────────────┘
 ```
 
 | Сервис | Что делает |
 |---|---|
 | **Quote Service** | Выдаёт binding quote: price, nonce, expiry, asset, chain |
-| **Pay Engine** | Списывает средства с кошелька агента, атомарно |
-| **Settlement Adapter** | Переводит средства мерчанту (stablecoin или fiat) |
-| **Receipt Authority** | Подписывает receipt Ed25519 ключом (HSM) |
-| **Ledger** | Append-only журнал всех транзакций |
+| **Settlement Verification** | Проверяет settlement, выполненный кошельком агента, перед выдачей receipt |
+| **Receipt Authority** | Подписывает receipt Ed25519 |
+| **Ledger / Reconciliation** | Хранит и сверяет финансовые события и settlement state |
 | **JWKS Service** | Публикует публичные ключи для верификации |
 | **Webhook Service** | Уведомляет мерчантов о lifecycle событиях |
-| **Passport Service** | Выдаёт и верифицирует Agent Passport |
 
 ### State machine транзакции
 
 ```
-QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → ReceiptIssued
+QuoteRequested → QuoteIssued → PaymentObserved → PaymentVerified → ReceiptIssued
 ```
 
-### Settlement tiers
-
-| Tier | Подтверждения | Когда receipt = 200 |
-|---|---|---|
-| **Tier 1** (низкий риск) | 0 confirmations | Мгновенно |
-| **Tier 2** (средний) | 1-3 blocks | После 1 подтверждения |
-| **Tier 3** (высокий) | 3-6 blocks | Async: 202 → 425 → 200 |
-
-Если failure rate > 1% за час → circuit breaker → все fallback на async (425).
+Точные finality requirements зависят от сети, актива и risk policy реализации и должны быть определены в deployment/runbook для соответствующего settlement route.
 
 ---
 
@@ -235,27 +218,26 @@ QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → Recei
 
 ### Криптография
 
-| Назначение | Алгоритм |
+| Назначение | Алгоритм / правило |
 |---|---|
 | Подпись receipt | EdDSA / Ed25519 |
 | Подпись webhook | HMAC-SHA256 |
-| Transport | TLS 1.3 |
-| API ключи (at rest) | Argon2id |
+| Transport | TLS |
 | Nonce | CSPRNG ≥ 128 бит |
-| Agent Passport | Ed25519 |
+| Agent Passport | Ed25519, если используется соответствующий профиль |
 
 ### Защита от атак
 
 | Атака | Защита |
 |---|---|
-| Forgery receipt | Ed25519, ключ в HSM |
-| Replay receipt | Nonce store (SET NX EX), linearizable |
-| Cross-resource reuse | aud + resource binding |
-| Double-spend | Idempotency-Key (24ч окно) |
-| Float bypass | Decimal сравнение, НЕ float |
-| JWKS DoS | Backoff + jitter, CDN cache, kid regex |
-| Clock skew | Tolerance ≤ 5с |
-| Webhook replay | Event ID tracking (TTL ≥ 24ч) |
+| Forgery receipt | Ed25519 + контролируемая ротация ключей |
+| Replay receipt | Nonce/idempotency/replay state согласно типу receipt |
+| Cross-resource reuse | `aud` + resource/scope binding |
+| Double-processing | Idempotency-Key и уникальные settlement identifiers |
+| Float bypass | Decimal/целые minor units, не float |
+| JWKS DoS | Cache/backoff/rotation policy |
+| Clock skew | Ограниченный tolerance |
+| Webhook replay | Event ID tracking и signature verification |
 
 ---
 
@@ -263,11 +245,11 @@ QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → Recei
 
 | Tier | Минимум | Пример |
 |---|---|---|
-| **Standard** | $0.00001 | Простой read, одна запись |
-| **Complex** | $0.00006 | Поиск, агрегация |
-| **Premium** | $0.00010 | AI inference, GPU |
+| **Standard** | $0.0005 | Простой read, одна запись |
+| **Complex** | $0.002 | Поиск, агрегация |
+| **Premium** | $0.005 | AI inference, GPU |
 
-**Комиссия AiFinPay:** 1% от каждой транзакции. Остальные 99% → мерчант (минус network costs).
+**Экономический профиль AIFP-1:** `treasuryBps = 100`, `creator/referralBps = 0`. AiFinPay получает ровно 1% успешной монетизированной транзакции, мерчант получает 99% до внешних network/settlement costs. **AIFP-2/x402 — отдельный профиль `0/0` с 0% комиссии AiFinPay.**
 
 ---
 
@@ -275,10 +257,10 @@ QuoteRequested → QuoteIssued → PaymentInitiated → PaymentSettled → Recei
 
 | Документ | Что описывает |
 |---|---|
-| **Doc 01** — RFC | Нормативная спецификация (25 секций) |
-| **Doc 02** — Merchant Guide | Интеграция на 15 фреймворках |
-| **Doc 03** — Agent SDK Spec | Авто-оплата, кошельки, бюджеты |
-| **Doc 04** — Security Spec | Threat model, крипто, compliance |
+| **Doc 01** — RFC | Нормативная спецификация AIFP-1 |
+| **Doc 02** — Merchant Guide | Интеграция мерчанта |
+| **Doc 03** — Agent SDK Spec | Поведение агента, бюджеты и payment flow |
+| **Doc 04** — Security Spec | Threat model и криптографические требования |
 | **Doc 08** — OpenAPI 3.1 | Machine-readable API контракт |
-| **Doc 10** — JSON Schemas | Форматы всех объектов |
+| **Doc 10** — JSON Schemas | Форматы объектов |
 | **Doc 16** — ACP Spec | Агент↔агент коммуникация |
