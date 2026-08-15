@@ -25,22 +25,24 @@ The official documentation ecosystem for **AiFinPay AIFP-1** — an application-
 
 ## Pricing Summary
 
-| Agent Action Tier | Starts From | Typical Action |
-|---|---:|---|
-| Standard | `$0.0005` | Simple read, single record, lightweight API request |
-| Complex | `$0.002` | Search, aggregation, multi-source queries, higher compute |
-| Premium | `$0.005` | AI inference, GPU workloads, deep analytics, premium data |
+The current preset price is the **gross commercial amount paid by the agent**. The 1% AiFinPay fee is deducted from gross and is not added on top.
 
-The current **AIFP-1 merchant-monetization profile** charges exactly **1% (`100` bps)** to AiFinPay, with **0 bps creator/referral fee**. The merchant receives **99% before external network or settlement costs**. **AIFP-2/x402 is a separate agent-payment profile with `0/0` AiFinPay fees.**
+| Agent Action Tier | Gross paid by agent | Merchant 99% | AiFinPay 1% | Typical Action |
+|---|---:|---:|---:|---|
+| Standard | `$0.0005` | `$0.000495` | `$0.000005` | Simple read, single record, lightweight API request |
+| Complex | `$0.002` | `$0.00198` | `$0.00002` | Search, aggregation, multi-source queries, higher compute |
+| Premium | `$0.005` | `$0.00495` | `$0.00005` | AI inference, GPU workloads, deep analytics, premium data |
+
+The current **AIFP-1 merchant-monetization profile** is gross-inclusive: the payer settles exactly the quoted gross amount, AiFinPay receives **1% (`100` bps)** from gross, creator/referral receives **0 bps**, and the merchant receives **99% before external network or settlement costs**. **AIFP-2/x402 is a separate agent-payment profile with `0/0` AiFinPay fees.**
 
 ## How They Fit Together
 
 - **Document 01 governs AIFP-1.** It is the normative spec. All other AIFP-1 documents are conforming guidance; conflicts must be reconciled explicitly.
-- **Economics source of truth.** [`../economics.md`](../economics.md) records the current founder-approved AIFP-1 `100/0` and AIFP-2 `0/0` separation.
+- **Economics source of truth.** [`../economics.md`](../economics.md) records the current founder-approved AIFP-1 gross-inclusive `100/0` and AIFP-2 `0/0` separation.
 - **Machine-readable sources.** API → Doc 08. Object shapes → Doc 10. SDK guidance mirrors Docs 08/10. Postman mirrors Doc 08.
 - **Repository architecture.** Doc 15 describes the intended GitHub organization layout and repository standards.
 - **Status discipline.** Draft/specification material must not be described as production-ready merely because it is documented here.
 
 ## Status
 
-Version 1.0.0 · Draft Standard · updated economics August 14, 2026 · © 2026 AiFinPay
+Version 1.0.0 · Draft Standard · updated economics August 15, 2026 · © 2026 AiFinPay
