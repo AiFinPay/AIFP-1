@@ -1,253 +1,191 @@
-# AIFP SDK Reference
+# AIFP-1 SDK Reference
 
-**Document:** AIFP-DOC-11 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
-**Aligned to:** OpenAPI 3.1 (Doc 08) · JSON Schemas (Doc 10) · Agent SDK Spec (Doc 03)
+**Document:** AIFP-DOC-11  
+**Status:** Draft SDK contract  
+**Governed by:** [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)  
+**Aligned to:** [OpenAPI](./08-OpenAPI-3.1-Specification.yaml) · [JSON Schemas](./10-JSON-Schemas.md)
 
-> Every SDK is a thin, idiomatic wrapper over the same protocol surface. Method names,
-> arguments, and return shapes map 1:1 to the OpenAPI operations. Where an SDK and the
-> protocol disagree, **AIFP-1 governs**. All SDKs implement the same **4-step loop**:
-> `402 → quote → pay → retry-with-receipt`, plus stateless receipt verification.
+This document defines the behavior an AIFP-1 SDK should expose. It does **not** assert that every language package, class name, or method shown in older drafts is published or production-ready. Package-specific documentation must be verified against the actual package/repository before being presented as available.
 
-## Common model (all languages)
+## 1. Route Model
 
-| Concept | Shape |
-|---|---|
-| `Agent` / `Client` | Holds API key + wallet; runs the pay-through loop. |
-| `Merchant` / `Verifier` | Verifies receipts statelessly (JWKS cache). |
-| `Quote` | `{ quote_id, amount, currency, accepted_assets, accepted_chains, nonce, expires_at }` |
-| `Receipt` | `{ receipt_id, receipt(jwt), status, tx_ref, amount, fee, expires_at }` |
-| `Passport` | `{ passport_id, agent_id, reputation(0–1000), risk(0–100), trust_level }` |
-| Errors | Typed exceptions mapping the `AIFP-*` registry (Doc 01 App. C). |
+An SDK must distinguish the product route before it constructs or signs a payment:
 
-**Shared options:** `apiKey` (`sk_live_*`/`sk_test_*`), `baseUrl`
-(`https://api.aifinpay.io` / sandbox), `timeoutMs`, `maxRetries` (default 5, exp backoff
-+ jitter, base 200ms, cap 30s). **Idempotency-Key** is auto-generated for `pay()` unless
-supplied.
+| Route | Economics | Purpose |
+|---|---|---|
+| `AIFP-1` | `treasuryBps=100`, `creatorBps=0` | Merchant AI-traffic/resource monetization |
+| `AIFP-2/x402` | `treasuryBps=0`, `creatorBps=0` | Separate agent-payment route |
 
-## Pricing model
+AIFP-1 helpers MUST NOT silently fall back to an AIFP-2 or legacy `100/1` settlement target.
 
-| Tier | Starts From | Typical Action |
-|---|---:|---|
-| `standard` | `$0.00001` | Simple read, single record, lightweight API request |
-| `complex` | `$0.00006` | Search, aggregation, multi-source queries, higher compute |
-| `premium` | `$0.00010` | AI inference, GPU workloads, deep analytics, premium data |
+## 2. Current AIFP-1 Reference Prices
 
-AiFinPay applies a **1% protocol fee** to every successful transaction. The remaining **99%** is settled to the merchant, excluding applicable payment network or settlement costs.
+| Tier | Price/action |
+|---|---:|
+| `standard` | `$0.0005` |
+| `complex` | `$0.002` |
+| `premium` | `$0.005` |
 
----
+SDKs should treat the server-issued binding quote as authoritative for a specific transaction while exposing the tier/reference price to the caller for policy decisions.
 
-## 1. TypeScript / Node — `@aifinpay/agent`, `@aifinpay/merchant`
+## 3. Required Agent-Side Capabilities
 
-**Install:** `npm i @aifinpay/agent @aifinpay/merchant`
+A conforming AIFP-1 client SDK should provide equivalents of:
 
-### Classes
-- `Agent` — autonomous client.
-- `Wallet` — provisioning/funding/budgets.
-- `MerchantVerifier` — stateless receipt verification.
-
-### Agent
 ```ts
-import { Agent } from "@aifinpay/agent";
+type Aifp1QuoteRequest = {
+  merchantId: string;
+  resource: string;
+  scope?: string;
+  pricingTier: "standard" | "complex" | "premium";
+  units?: number;
+  preferredAsset?: string;
+  preferredChain?: string;
+};
 
-const agent = new Agent({ apiKey: process.env.AIFP_KEY!, walletId: "wlt_3a1b" });
-
-// One-shot pay-through (handles 402 -> quote -> pay -> retry)
-const res = await agent.get("https://merchant.example.com/api/data");
-console.log(res.data, res.aifp.receiptId);
-
-// Explicit steps
-const quote   = await agent.quote({ merchantId: "mrch_9f3a1c2b", resource: "/api/data", pricingTier: "standard" });
-const receipt = await agent.pay({ quoteId: quote.quoteId, walletId: "wlt_3a1b", asset: "USDC", chain: "polygon" });
-
-// Budget policy (throws BudgetExceededError -> AIFP-403-BUDGET-EXCEEDED)
-await agent.setBudget({ window: "day", capUsd: "50.00" });
+type Aifp1Quote = {
+  quoteId: string;
+  routeClass: "AIFP-1";
+  merchantId: string;
+  resource: string;
+  merchantAmount: string;
+  totalAmount?: string;
+  treasuryBps: 100;
+  creatorBps: 0;
+  asset: string;
+  chain: string;
+  settlementTarget?: string;
+  expiresAt: string;
+};
 ```
 
-### Interfaces
+### Quote
+
 ```ts
-interface QuoteRequest { merchantId: string; resource: string; pricingTier?: "standard"|"complex"|"premium"; currency?: "USD"; }
-interface PayRequest   { quoteId: string; walletId: string; asset: "USDC"|"USDT"|"PYUSD"; chain: Chain; idempotencyKey?: string; }
-interface Receipt      { receiptId: string; receipt: string; status: "settled"|"settling"|"expired"|"revoked"; txRef?: string; amount: string; fee?: string; expiresAt: string; }
+quoteAifp1(request: Aifp1QuoteRequest): Promise<Aifp1Quote>
 ```
 
-### MerchantVerifier
+The SDK MUST reject a quote when:
+
+- `routeClass !== "AIFP-1"`;
+- `treasuryBps !== 100`;
+- `creatorBps !== 0`;
+- the quote is expired;
+- merchant/resource binding does not match the request;
+- the selected route is not in the SDK's trusted/verified registry when such a registry is used.
+
+### Settlement construction
+
+The SDK should construct the transaction for the payer but keep signing local to the payer wallet.
+
 ```ts
-import { MerchantVerifier } from "@aifinpay/merchant";
-const verifier = new MerchantVerifier({ merchantId: "mrch_9f3a1c2b" }); // caches JWKS
-const { valid, claims, reason } = await verifier.verify(jwt, { resource: "/api/data" });
+buildAifp1Settlement(quote: Aifp1Quote): Promise<UnsignedOrWalletReadyTransaction>
 ```
 
-### Events / Callbacks
+AIFP-1 SDK code MUST NOT require sending a private key, recovery phrase, or raw signing secret to the AiFinPay receipt service.
+
+### Settlement submission
+
+After local signing/broadcast, the SDK submits the settlement reference for verification:
+
 ```ts
-agent.on("quote", q => {});
-agent.on("paid", r => {});
-agent.on("retry", ({ attempt, code }) => {});
-verifier.on("rejected", ({ code }) => {}); // e.g. AIFP-422-SIGNATURE
+submitAifp1Settlement(input: {
+  quoteId: string;
+  chain: string;
+  asset: string;
+  txRef: string;
+  idempotencyKey: string;
+}): Promise<Aifp1Receipt | PendingSettlement>
 ```
 
-### Best practices
-Reuse one `MerchantVerifier` (persistent JWKS + nonce store). Never re-fetch JWKS per
-request. Always set a budget on production agents.
+A successful receipt response means the verifier accepted the settlement. A `txRef` by itself is not proof of success.
 
----
+## 4. Pay-Through Helper
 
-## 2. Python — `aifinpay-agent`, `aifinpay-merchant`
+An SDK may expose a high-level helper such as:
 
-**Install:** `pip install aifinpay-agent aifinpay-merchant`
-
-```python
-from aifinpay_agent import Agent, BudgetExceeded
-
-agent = Agent(api_key="sk_live_...", wallet_id="wlt_3a1b")
-
-# Pay-through
-resp = agent.get("https://merchant.example.com/api/data")
-print(resp.json(), resp.aifp.receipt_id)
-
-# Explicit
-quote = agent.quote(merchant_id="mrch_9f3a1c2b", resource="/api/data", pricing_tier="standard")
-receipt = agent.pay(quote_id=quote.quote_id, wallet_id="wlt_3a1b", asset="USDC", chain="polygon")
-
-agent.set_budget(window="day", cap_usd="50.00")  # raises BudgetExceeded later
+```ts
+fetchPaid(url, options)
 ```
 
-```python
-# Async variant
-from aifinpay_agent.aio import AsyncAgent
-async with AsyncAgent(api_key="sk_live_...") as a:  # pragma: allowlist secret
-    r = await a.get(url)
+Expected behavior:
+
+1. issue original request;
+2. if response is not an AIFP-1 `402`, return/route it normally;
+3. parse the AIFP-1 challenge;
+4. enforce caller budget/policy;
+5. obtain and validate the binding quote;
+6. build/sign/broadcast settlement locally;
+7. submit the settlement reference for verification;
+8. receive a receipt only after verification;
+9. retry the original request with the receipt;
+10. never retry through AIFP-2 merely to bypass an AIFP-1 budget or route error.
+
+## 5. Budget Safety
+
+Budget enforcement must be concurrency-safe. A daily/window cap that resets on process restart or can be bypassed by two simultaneous calls is not sufficient for an autonomous payment SDK.
+
+An SDK implementation should use an atomic reserve/commit/release model or another durable equivalent when a persistent spend cap is promised.
+
+## 6. Merchant-Side Verification
+
+A merchant SDK/verifier should expose an equivalent of:
+
+```ts
+verifyAifp1Receipt(receipt, {
+  merchantId,
+  resource,
+  requiredAmount
+})
 ```
 
-```python
-# Merchant verification (stateless)
-from aifinpay_merchant import verify_receipt
-ok, claims = verify_receipt(jwt, merchant_id="mrch_9f3a1c2b", resource="/api/data")
-```
+It must validate the required active receipt profile, including:
 
-**Classes:** `Agent`, `AsyncAgent`, `Wallet`, `Passport`. **Callbacks:** `on_quote`,
-`on_paid`, `on_retry`. **Exceptions:** `PaymentRequired`, `BudgetExceeded`,
-`InvalidReceipt`, `QuoteExpired`, `RateLimited` (map to the `AIFP-*` codes).
+- signature and allowed algorithm;
+- issuer/trusted key;
+- merchant/audience;
+- resource/scope;
+- expiry;
+- paid amount or quota sufficiency;
+- replay/consumption/idempotency state where applicable.
 
----
+The result must fail closed on ambiguity.
 
-## 3. Go — `github.com/aifinpay/aifp-go`
+## 7. Numeric Handling
 
-**Install:** `go get github.com/aifinpay/aifp-go`
+All SDKs MUST use exact integer minor units or arbitrary/exact decimal handling for money. Binary floating-point comparisons are not acceptable for settlement validation.
 
-```go
-import "github.com/aifinpay/aifp-go"
+Token/stablecoin amounts must be converted using the actual configured token decimals for the selected route.
 
-ag := aifp.NewAgent(aifp.Config{APIKey: os.Getenv("AIFP_KEY"), WalletID: "wlt_3a1b"})
+## 8. Error Classes
 
-// Pay-through
-res, err := ag.Get(ctx, "https://merchant.example.com/api/data")
+SDKs should expose typed errors or equivalent machine-readable codes for at least:
 
-// Explicit
-q, _ := ag.Quote(ctx, aifp.QuoteRequest{MerchantID: "mrch_9f3a1c2b", Resource: "/api/data", PricingTier: aifp.Standard})
-r, _ := ag.Pay(ctx, aifp.PayRequest{QuoteID: q.QuoteID, WalletID: "wlt_3a1b", Asset: aifp.USDC, Chain: aifp.Polygon})
+- payment required / AIFP-1 challenge;
+- quote expired;
+- unsupported or unverifiable route;
+- route economics mismatch;
+- budget exceeded;
+- settlement pending;
+- settlement mismatch/underpayment;
+- duplicate/replay/idempotency conflict;
+- invalid receipt;
+- rate/service unavailable.
 
-// Merchant verify (no network call)
-v := aifp.NewVerifier("mrch_9f3a1c2b")
-claims, err := v.Verify(jwt, aifp.VerifyOpts{Resource: "/api/data"})
-```
+An unsupported verifier route should be reported **before** the payer is instructed to send funds whenever possible.
 
-**Interfaces:** `Agent`, `Verifier`, `Wallet`. Errors implement `aifp.Error` exposing
-`.Code()` (e.g. `aifp.ErrBudgetExceeded`). Hooks via `Config.OnRetry func(attempt int, code string)`.
+## 9. Cross-Language Guarantees
 
----
+Any language implementation claiming AIFP-1 conformance should preserve the same protocol semantics:
 
-## 4. Rust — `aifinpay`
+1. AIFP-1 route identification.
+2. Current reference prices `$0.0005 / $0.002 / $0.005`.
+3. Exact `100/0` economics.
+4. Local payer signing/non-custodial settlement behavior where the selected rail supports it.
+5. Settlement verification before receipt issuance.
+6. Merchant/resource/scope binding.
+7. Exact monetary arithmetic.
+8. Replay/idempotency protection.
+9. Explicit isolation from AIFP-2 `0/0` and legacy fee-bearing targets.
 
-**Install:** `cargo add aifinpay`
-
-```rust
-use aifinpay::{Agent, QuoteRequest, PayRequest, Asset, Chain, PricingTier};
-
-let agent = Agent::new("sk_live_...").wallet("wlt_3a1b");
-let res = agent.get("https://merchant.example.com/api/data").await?;
-
-let q = agent.quote(QuoteRequest{ merchant_id:"mrch_9f3a1c2b".into(), resource:"/api/data".into(), pricing_tier:PricingTier::Standard, ..Default::default() }).await?;
-let r = agent.pay(PayRequest{ quote_id:q.quote_id, wallet_id:"wlt_3a1b".into(), asset:Asset::Usdc, chain:Chain::Polygon }).await?;
-
-// Verify
-let v = aifinpay::Verifier::new("mrch_9f3a1c2b");
-let claims = v.verify(&jwt, "/api/data")?; // Result<Claims, AifpError>
-```
-
-`AifpError` is an enum mirroring the registry (`AifpError::BudgetExceeded`, `::Signature`,
-`::QuoteExpired`, …). Async on Tokio; `verify` is sync and allocation-light.
-
----
-
-## 5. Java — `io.aifinpay:aifp`
-
-**Install:** `implementation "io.aifinpay:aifp:1.0.0"`
-
-```java
-Agent agent = Agent.builder().apiKey(System.getenv("AIFP_KEY")).walletId("wlt_3a1b").build();
-PayThroughResponse res = agent.get("https://merchant.example.com/api/data");
-
-Quote q = agent.quote(QuoteRequest.builder()
-    .merchantId("mrch_9f3a1c2b").resource("/api/data").pricingTier(PricingTier.STANDARD).build());
-Receipt r = agent.pay(PayRequest.builder()
-    .quoteId(q.getQuoteId()).walletId("wlt_3a1b").asset(Asset.USDC).chain(Chain.POLYGON).build());
-
-MerchantVerifier v = new MerchantVerifier("mrch_9f3a1c2b");
-VerifyResult vr = v.verify(jwt, "/api/data");
-```
-
-Checked exception `AifpException` exposes `getCode()`. Listeners via
-`agent.addListener(AifpListener)`. Thread-safe verifier with internal JWKS cache.
-
----
-
-## 6. PHP — `aifinpay/aifp`
-
-**Install:** `composer require aifinpay/aifp`
-
-```php
-use AiFinPay\Agent; use AiFinPay\MerchantVerifier;
-
-$agent = new Agent(['apiKey' => getenv('AIFP_KEY'), 'walletId' => 'wlt_3a1b']);
-$res = $agent->get('https://merchant.example.com/api/data');
-
-$quote   = $agent->quote(['merchantId' => 'mrch_9f3a1c2b', 'resource' => '/api/data', 'pricingTier' => 'standard']);
-$receipt = $agent->pay(['quoteId' => $quote->quoteId, 'walletId' => 'wlt_3a1b', 'asset' => 'USDC', 'chain' => 'polygon']);
-
-$verifier = new MerchantVerifier('mrch_9f3a1c2b');
-[$ok, $claims] = $verifier->verify($jwt, '/api/data');
-```
-
-Throws `AiFinPay\Exception\AifpException` with `->getCode()`. PSR-18 HTTP client +
-PSR-3 logging supported.
-
----
-
-## 7. C# / .NET — `AiFinPay`
-
-**Install:** `dotnet add package AiFinPay`
-
-```csharp
-var agent = new Agent(new AgentOptions { ApiKey = Env("AIFP_KEY"), WalletId = "wlt_3a1b" });
-var res = await agent.GetAsync("https://merchant.example.com/api/data");
-
-var quote   = await agent.QuoteAsync(new QuoteRequest { MerchantId = "mrch_9f3a1c2b", Resource = "/api/data", PricingTier = PricingTier.Standard });
-var receipt = await agent.PayAsync(new PayRequest { QuoteId = quote.QuoteId, WalletId = "wlt_3a1b", Asset = Asset.USDC, Chain = Chain.Polygon });
-
-var verifier = new MerchantVerifier("mrch_9f3a1c2b");
-var (valid, claims) = await verifier.VerifyAsync(jwt, resource: "/api/data");
-```
-
-`AifpException.Code` carries the registry code. Events: `agent.OnQuote`, `agent.OnPaid`,
-`agent.OnRetry`. Verifier is `IDisposable` and caches JWKS.
-
----
-
-## Cross-language guarantees
-
-1. **Identical pricing & enums** — action pricing tiers (Standard from $0.00001, Complex from $0.00006, Premium from $0.00010), assets (USDC/USDT/PYUSD), and the 12-chain set are the same everywhere.
-2. **Protocol fee** — every SDK surfaces the 1% AiFinPay protocol fee and merchant net settlement amount where available.
-3. **Stateless verify** — every `Verifier` performs the AIFP-1 §7.4 10-step check with no network call; only JWKS is cached.
-4. **Idempotency** — `pay()` auto-attaches an `Idempotency-Key` (24h window) unless overridden.
-5. **Retries** — exponential backoff with jitter (base 200ms, cap 30s, 5 attempts); `402`/`409` are never blindly retried.
-6. **Errors** — every SDK exposes the canonical `AIFP-*` code; new codes (e.g. `AIFP-403-BUDGET-EXCEEDED`) surface uniformly.
+Actual package names, release versions, supported chains, and published APIs must be documented in their own repositories/package registries and must not be invented here.
