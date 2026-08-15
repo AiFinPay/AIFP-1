@@ -1,15 +1,15 @@
 ﻿# AiFinPay Documentation Portal
 
-Welcome to the AiFinPay Paywall documentation portal. This is the public entry point for protocol implementers, merchant engineers, AI-agent builders, wallet teams, and ecosystem contributors.
+Welcome to the AiFinPay AIFP-1 documentation portal. This is the public entry point for protocol implementers, merchant engineers, AI-agent builders, wallet teams, and ecosystem contributors.
 
 ## Start Here
 
 | Role | Recommended Path | Outcome |
 |---|---|---|
-| New developer | [Quick Start](quickstart/index.md) | Understand the end-to-end HTTP 402 flow |
+| New developer | [Quick Start](quickstart/index.md) | Understand the end-to-end AIFP-1 HTTP 402 flow |
 | Merchant engineer | [Merchant Guide](merchant.md) -> [Integration Guide](aifp/02-Merchant-Integration-Guide.md) | Protect a route and verify receipts |
 | Agent builder | [Agent Guide](agent.md) -> [Agent SDK Spec](aifp/03-AI-Agent-SDK-Specification.md) | Pay automatically within budget policy |
-| Agent protocol engineer | [ACP Spec](aifp/16-Agent-Communication-Protocol-Specification.md) | Agent-to-agent messaging and cross-agent payments |
+| Agent protocol engineer | [ACP Spec](aifp/16-Agent-Communication-Protocol-Specification.md) | Agent-to-agent messaging and payment metadata |
 | Wallet/platform engineer | [Wallet Guide](wallet.md) -> [Security Spec](aifp/04-Security-and-Cryptography-Specification.md) | Bind wallets and enforce settlement policy |
 | Protocol implementer | [AIFP-1 RFC](aifp/01-AIFP-1-RFC-Payment-Protocol-Specification.md) | Implement the normative protocol |
 | API tooling | [OpenAPI 3.1](aifp/08-OpenAPI-3.1-Specification.yaml) + [JSON Schemas](aifp/10-JSON-Schemas.md) | Generate clients and validators |
@@ -20,8 +20,8 @@ Welcome to the AiFinPay Paywall documentation portal. This is the public entry p
 | Section | Description |
 |---|---|
 | [Architecture](architecture.md) | System model, trust boundaries, data plane, control plane |
-| [Core Concepts](core-concepts/index.md) | x402 flow, pricing, security, and conformance |
-| [Protocol Economics](economics.md) | Pricing tiers, protocol fee, merchant settlement model |
+| [Core Concepts](core-concepts/index.md) | HTTP 402 flow, pricing, security, and conformance |
+| [Protocol Economics](economics.md) | AIFP-1 pricing tiers, exact `100/0` fee profile, and AIFP-2 `0/0` separation |
 | [Security Model](security-model.md) | Receipt signing, replay prevention, wallet policy, key rotation |
 | [Conformance](conformance.md) | Compatibility matrix and future certification plan |
 | [Developer Experience](developer-experience.md) | SDKs, examples, sandbox, OpenAPI, Postman, schemas |
@@ -38,25 +38,39 @@ Welcome to the AiFinPay Paywall documentation portal. This is the public entry p
 
 ```mermaid
 flowchart LR
-    A["Agent requests resource"] --> B["Merchant returns 402 challenge"]
-    B --> C["Agent requests quote"]
-    C --> D["Agent pays within wallet policy"]
-    D --> E["AiFinPay signs receipt"]
-    E --> F["Agent retries request"]
-    F --> G["Merchant verifies receipt locally"]
-    G --> H["Access granted"]
+    A["Agent requests resource"] --> B["Merchant returns AIFP-1 402 challenge"]
+    B --> C["Agent requests binding quote"]
+    C --> D["Agent settles from its wallet"]
+    D --> E["AiFinPay verifies settlement"]
+    E --> F["AiFinPay signs receipt"]
+    F --> G["Agent retries request"]
+    G --> H["Merchant verifies receipt locally"]
+    H --> I["Access granted"]
 ```
+
+## Current Economics
+
+| Item | Current AIFP-1 value |
+|---|---:|
+| Standard action | `$0.0005` |
+| Complex action | `$0.002` |
+| Premium action | `$0.005` |
+| AiFinPay protocol fee | `1%` (`100` bps) |
+| Creator/referral fee | `0%` (`0` bps) |
+| Merchant amount | `99%` before external network/settlement costs |
+
+AIFP-2/x402 is a separate agent-payment route profile with `0/0` AiFinPay fees; do not apply AIFP-1's 1% merchant-monetization fee to AIFP-2.
 
 ## Real-World Use Cases
 
 | Use case | How AIFP is used |
 |---|---|
-| Paid data APIs | Agents buy individual records or pages after free quota, then retry with `Payment-Receipt`. |
+| Paid data APIs | Agents buy individual records or metered access after free quota, then retry with a receipt. |
 | RAG and research agents | Pipelines pay for search, enrichment, and premium corpus access within budget policy. |
-| AI inference and compute | Merchants price GPU/model calls as `premium` and use async settlement for high-value jobs. |
-| Licensed crawler access | Crawlers present Passport for reputation and pay instead of being blocked by WAF rules. |
-| Webhook reconciliation | Merchants verify signed lifecycle events and reconcile settlement, payout, and dispute records. |
-| Cross-agent payments | Agent A pays Agent B for search, retrieval, or inference via ACP messages and x402 receipts. |
+| AI inference and compute | Merchants classify higher-cost model/compute actions as `premium`. |
+| Licensed crawler access | Publishers may monetize machine access instead of blocking all automated traffic. |
+| Webhook reconciliation | Merchants verify signed lifecycle events and reconcile settlement records. |
+| Cross-agent commerce | ACP can carry structured request/payment metadata between agents; settlement still follows the explicitly selected payment profile. |
 
 ## Canonical Documents
 
