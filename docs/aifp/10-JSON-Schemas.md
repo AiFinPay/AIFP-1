@@ -14,6 +14,9 @@ This document defines the current machine-readable object shapes required by the
 | `standard` reference action | `$0.0005` |
 | `complex` reference action | `$0.002` |
 | `premium` reference action | `$0.005` |
+| `protocolFeeRate` | `0.01` |
+| `merchantSettlementRate` | `0.99` |
+| `creatorFeeRate` | `0` |
 | `treasury_bps` | `100` |
 | `creator_bps` | `0` |
 
@@ -45,6 +48,18 @@ AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from thes
       "type": "string",
       "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
       "examples": ["0.0005", "0.002", "0.005", "1", "10.25"]
+    },
+    "protocolFeeRate": {
+      "type": "string",
+      "const": "0.01"
+    },
+    "merchantSettlementRate": {
+      "type": "string",
+      "const": "0.99"
+    },
+    "creatorFeeRate": {
+      "type": "string",
+      "const": "0"
     },
     "treasuryBps": {
       "type": "integer",
@@ -312,11 +327,12 @@ Machine-readable AIFP-1 artifacts are conformant only if they agree on all of th
 
 1. protocol/route class is `AIFP-1`;
 2. standard preset prices are `$0.0005 / $0.002 / $0.005`;
-3. `treasury_bps = 100`;
-4. `creator_bps = 0`;
-5. payer settlement reference is verified before receipt issuance;
-6. no private signing key is sent to the receipt service;
-7. unsupported or unverifiable settlement routes fail before payment;
-8. AIFP-2/x402 `0/0` is not silently represented as AIFP-1.
+3. `protocolFeeRate = 0.01` and `treasury_bps = 100`;
+4. `creatorFeeRate = 0` and `creator_bps = 0`;
+5. `merchantSettlementRate = 0.99` before external network/settlement costs;
+6. payer settlement reference is verified before receipt issuance;
+7. no private signing key is sent to the receipt service;
+8. unsupported or unverifiable settlement routes fail before payment;
+9. AIFP-2/x402 `0/0` is not silently represented as AIFP-1.
 
 Legacy schema examples using `$0.00001 / $0.00006 / $0.00010` or `100/1` are superseded and must not be used for current integration generation.
