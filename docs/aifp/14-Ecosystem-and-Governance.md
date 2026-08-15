@@ -1,145 +1,186 @@
-# AIFP Ecosystem & Governance
+# AIFP-1 Ecosystem & Governance
 
-**Document:** AIFP-DOC-14 · **Version:** 1.0.0 · **Governed by:** AIFP-1 (Doc 01)
-**Companion to:** AIP Process (Doc 06).
+**Document:** AIFP-DOC-14  
+**Status:** Draft ecosystem/governance guidance  
+**Companion to:** [AIP Process](./06-AIP-Improvement-Proposal-Process.md)
 
-> AIFP aspires to be an **open standard** for autonomous-agent payments — the payment
-> equivalent of what HTTP, TLS, and OpenAPI are for the web. This document explains why
-> AIFP is open, how it is governed, and how implementers prove conformance.
+AIFP-1 is maintained as an open protocol specification for merchant AI-traffic/resource monetization. This document describes governance principles and evidence expectations; it does not claim that a formal standards body, certification authority, Security Council, conformance registry, or multi-stakeholder foundation already exists unless separately evidenced.
 
----
+## 1. Open Protocol Principle
 
-## 1. Why AIFP Is Open
+The protocol should remain implementable from public technical artifacts:
 
-A payment **standard** only succeeds if no single party controls it and everyone can
-implement it without permission. AIFP is open because:
+- normative RFC;
+- current economics;
+- OpenAPI;
+- JSON schemas;
+- examples/test vectors;
+- AIP history;
+- implementation/deployment evidence where published.
 
-- **Network effects require neutrality.** Merchants and agents will only standardize on a
-  protocol they don't have to trust a competitor to run.
-- **Tokenless legitimacy.** With no native token (Whitepaper §14), there is no incentive
-  to capture the protocol for asset value; incentives align with **usage**.
-- **Permissionless implementation.** The spec (Doc 01), schemas (Doc 10), OpenAPI (Doc 08),
-  and conformance suite are public under Apache-2.0. Anyone can build a compliant client,
-  server, or SDK.
+AiFinPay may operate commercial implementations and settlement services, but product operation and protocol specification are distinct concerns.
 
----
+## 2. Current Protocol Scope
 
-## 2. Open Standard Strategy
+| Protocol | Scope | Current AiFinPay fee profile |
+|---|---|---:|
+| **AIFP-1** | Merchant AI-traffic/resource monetization | `100/0` |
+| **AIFP-2/x402** | Separate x402-style agent payment route | `0/0` |
+| **AIFP-3** | Agent Passport / identity | Separate identity surface |
 
-1. **Publish everything that defines the wire.** RFC, OpenAPI, JSON Schemas, error
-   registry, conformance vectors — all public, all versioned.
-2. **Separate protocol from product.** AiFinPay (the company) runs *a* reference
-   implementation and commercial settlement service; the **protocol** is independent and
-   governed in the open (AIP process).
-3. **Interoperate, don't enclose.** Maintain x402 compatibility and standard stablecoins
-   (USDC/USDT/PYUSD) rather than proprietary rails.
-4. **Pursue formal standardization.** Track toward recognition by an appropriate standards
-   body as adoption matures (2027 roadmap).
+Using HTTP `402` does not automatically make an AIFP-1 flow x402.
 
----
+Current AIFP-1 reference action prices are `$0.0005 / $0.002 / $0.005`.
 
-## 3. Protocol Evolution
+## 3. Governance Mechanism
 
-All changes flow through the **AIP process (Doc 06)**: Idea → Draft → Review → Last Call →
-Accepted → Final, with mandatory reference implementation + passing conformance tests
-before Final. SemVer governs compatibility (Doc 06 §5). Capabilities that aren't universal
-are gated by the **Protocol Negotiation Layer** (AIFP-1 §22.3) so old and new clients
-interoperate safely.
+Material AIFP-1 changes should use the repository's AIP process.
 
----
+At minimum, review should answer:
 
-## 4. Governance
+- what problem is being solved;
+- which protocol/route is affected;
+- whether wire/API behavior changes;
+- whether economics change;
+- compatibility/migration impact;
+- security impact;
+- implementation/test impact;
+- deployment/registry impact;
+- what evidence is required before a live claim.
 
-**4.1. Bodies.**
-- **AIP Editors** — process gatekeepers (formatting, numbering, status).
-- **Review Board** — domain maintainers (Protocol, Security, SDK, Networks) who vote on
-  technical merit.
-- **Security Council** — must sign off on any Security-categorized AIP; can issue
-  emergency advisories outside the normal cadence.
-- **Community** — open comment; substantive objections must be resolved.
+The actual repository maintainers/owners are responsible for merging changes. This document does not invent a standing review board whose members have not been formally designated.
 
-**4.2. Decision rule.** Rough consensus of the Review Board, no unresolved blocking
-security objection; ties default to status quo. All decisions recorded publicly.
+## 4. Economic Governance
 
-**4.3. Stewardship.** Over time, governance is intended to broaden beyond AiFinPay (the
-company) into a multi-stakeholder body (implementers, enterprises, foundations) — a
-deliberate move from *vendor-stewarded* to *community-stewarded* as the standard matures.
+Economic changes are high-impact protocol changes because stale examples can cause incorrect payments.
 
----
+Current AIFP-1 baseline:
 
-## 5. Community
-
-- **Forums/Discussions** for RFCs and design debate.
-- **Public AIP repository** (Doc 15) with transparent status tracking.
-- **Contributor License:** Apache-2.0 + DCO sign-off.
-- **Code of Conduct** and clear maintainer ladders (contributor → committer → maintainer).
-- **Office hours / working groups** per domain (Protocol, Security, SDK, Networks).
-
----
-
-## 6. Certification
-
-An implementation may advertise **"AIFP-1 Conformant"** only if it:
-1. Passes the official **conformance test suite** (§8) for its role (merchant, agent,
-   wallet, or full).
-2. Verifies receipts per AIFP-1 §7.4 (stateless, all 10 checks).
-3. Honors the canonical pricing tiers, error registry, and idempotency rules.
-4. Re-certifies on each protocol MINOR/MAJOR it claims to support.
-
-A public **conformance badge + registry** lists certified implementations and the
-version(s) they pass.
-
----
-
-## 7. Reference Implementations
-
-- AiFinPay maintains reference **server**, **merchant SDK**, and **agent SDK**
-  implementations (Doc 15) under Apache-2.0.
-- Reference implementations are **normative-tracking**: every Final AIP updates them.
-- They are intended for learning and conformance comparison, not as the only allowed
-  implementation — alternative independent implementations are explicitly encouraged.
-
----
-
-## 8. Compliance / Conformance Tests
-
-The `aifinpay/conformance` repo (Doc 15) provides:
-- **Protocol vectors:** canonical Payment Challenges, quotes, signed receipts (valid +
-  intentionally invalid), nonce-replay cases, expiry/skew cases, amount-mismatch cases.
-- **Role suites:** *Merchant* (must correctly 402, verify, and reject tampered receipts),
-  *Agent* (must run the loop, respect budgets, back off correctly), *Wallet* (funding,
-  multi-chain, budgets).
-- **Negative tests:** every `AIFP-*` error must be produced under the right condition.
-- **CI integration:** runnable as a GitHub Action; green required for "Conformant" status.
-
-```bash
-npx @aifinpay/conformance run --role merchant --base https://my-impl.example.com
-# -> 142 passed, 0 failed  (AIFP-1 v1.0.0)
+```text
+standard: $0.0005/action
+complex:  $0.002/action
+premium:  $0.005/action
+treasuryBps: 100
+creatorBps:  0
 ```
 
----
+A proposal changing those values should update the entire dependency chain: RFC, economics, OpenAPI, schemas, examples, SDK/backend route policy, contract/deployment profile, and conformance evidence.
 
-## 9. Compatibility Policy
+## 5. Network Governance
 
-- **MINOR** releases are backward-compatible (additive). Clients on the same MAJOR keep
-  working.
-- **MAJOR** releases require an AIP, a documented migration, and **≥12 months** parallel
-  support of the previous MAJOR.
-- **Receipts** remain verifiable within their TTL across MINOR upgrades; `kid` rotation
-  never breaks in-flight receipts.
-- **x402 compatibility** is maintained as a first-class interop surface. Any migration
-  incentives are published through the official developer portal.
+Do not ratify "network support" as a single boolean.
 
----
+Useful states are:
 
-## 10. Long-Term Vision
+- protocol can represent the network;
+- source/deployment provenance known;
+- canonical target identified;
+- supported asset/decimals known;
+- verifier ready;
+- SDK/backend ready;
+- E2E verified;
+- payment-live;
+- legacy/superseded.
 
-AIFP's endgame is to be **assumed infrastructure**: the default payment layer every agent
-framework and monetizable API speaks, governed by an open multi-stakeholder community,
-neutral and tokenless, settling across many chains and hybrid fiat. The two-sided flywheel
-— more merchants → more value for agents → more agents → more value for merchants — plus
-open governance and conformance certification is how AIFP compounds from a product into a
-**standard**.
+An AIP that adds a network identifier is not, by itself, a production/payment-live approval.
 
-See the Whitepaper (Doc 05 §16–18) for the strategic arc and the AIP process (Doc 06) for
-how the community drives it.
+## 6. Conformance
+
+There is a difference between a **conformance model** and a currently deployed certification program.
+
+AIFP-1 conformance should test, at minimum:
+
+### Merchant role
+
+- returns an AIFP-1 `402` for paid access;
+- does not mislabel AIFP-1 as x402;
+- verifies receipt signature/claims;
+- enforces scope/amount/quota/replay rules;
+- fails closed.
+
+### Agent/SDK role
+
+- detects AIFP-1 separately from AIFP-2/x402;
+- validates current `100/0` quote economics;
+- enforces budget before signing;
+- uses the canonical route;
+- submits settlement reference for verification;
+- does not duplicate payment on retries.
+
+### Settlement/verifier role
+
+- validates actual chain/rail evidence;
+- validates merchant/asset/amount/payment binding;
+- validates current economic profile;
+- does not issue receipt before successful verification;
+- refuses unsupported routes before payment.
+
+### Financial/reconciliation role
+
+- records merchant/treasury/creator amounts distinctly;
+- detects creator amount above zero on current AIFP-1;
+- detects route/profile mismatch;
+- handles duplicate/finality/reorg corrections as appropriate.
+
+## 7. Conformance Claims
+
+Until a formal public certification program exists, prefer evidence-based statements such as:
+
+- "passes repository conformance tests for AIFP-1 quote/receipt flow";
+- "Polygon AIFP-1 route E2E verified at commit/deployment X";
+- "SDK supports AIFP-1 `100/0` on the listed verified routes".
+
+Avoid an official-looking "AIFP Certified" badge/registry unless a real certification process has been created and is operating.
+
+## 8. Reference Implementations
+
+A protocol document may point to real AiFinPay implementation repositories. It must verify the actual repository/package before describing it as published or current.
+
+A documentation stub or aspirational language matrix is not a reference implementation.
+
+Reference implementations are useful for interoperability but are not the only allowed implementation of an open protocol.
+
+## 9. Security Review Governance
+
+Risk-based review should apply:
+
+| Change | Typical review level |
+|---|---|
+| Editorial docs | ordinary maintainer review |
+| Machine-readable schema/API | compatibility + tests |
+| SDK payment construction | technical/security review + tests |
+| Backend verifier/financial ledger | independent review + integration evidence |
+| Smart contracts/payment programs | strongest independent review + exact deployment evidence |
+
+The author or AI agent that produced a financial smart-contract/payment-path change should not be its only production approver.
+
+## 10. Transparency
+
+Important decisions should be traceable through public artifacts where appropriate:
+
+- AIP / issue / requirement;
+- pull request;
+- exact commit;
+- tests/review;
+- release/deployment;
+- conformance/E2E evidence.
+
+Historical mistakes or superseded deployments should be preserved when they are useful audit evidence, but clearly labeled so they are not selected as current routes.
+
+## 11. Interoperability
+
+AIFP-1 should interoperate with the broader agent/payment ecosystem without erasing protocol boundaries.
+
+AIFP-2 can handle x402 compatibility separately. AIFP-1 should not copy an unsupported x402 wire format and call it compatible. Compatibility claims should identify the actual x402 version/scheme/network tested.
+
+## 12. Long-Term Direction
+
+The goal is an open, implementation-neutral protocol for monetizing machine access. Broader community governance or formal standardization may be pursued as adoption and independent implementations mature, but future governance aspirations should be labeled as roadmap rather than current institutional fact.
+
+## References
+
+- [AIFP-1 RFC](./01-AIFP-1-RFC-Payment-Protocol-Specification.md)
+- [AIP Process](./06-AIP-Improvement-Proposal-Process.md)
+- [Security Specification](./04-Security-and-Cryptography-Specification.md)
+- [Repository Architecture](./15-Repository-Architecture.md)
+- [Protocol Economics](../economics.md)
