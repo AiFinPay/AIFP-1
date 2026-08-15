@@ -26,6 +26,7 @@ info:
     email: protocol@aifinpay.io
   license:
     name: Apache-2.0
+    identifier: Apache-2.0
   x-protocol: AIFP-1
   x-status: draft
   x-economics:
@@ -39,11 +40,18 @@ servers:
   - url: https://api.aifinpay.io
     description: AiFinPay API host when the referenced AIFP-1 service is enabled
 
+security:
+  - bearerAuth: []
+
 tags:
   - name: Quote
+    description: Create binding AIFP-1 merchant-payment quotes.
   - name: Settlement
+    description: Verify payer-executed settlements before receipt issuance.
   - name: Receipt
+    description: Retrieve settlement-backed AIFP-1 receipts.
   - name: Verification
+    description: Verify receipt keys and, optionally, receipt claims.
 
 paths:
   /v1/quote:
@@ -207,8 +215,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Jwks'
+        '503':
+          description: Verification-key service unavailable.
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
