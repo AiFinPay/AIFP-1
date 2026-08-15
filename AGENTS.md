@@ -110,11 +110,16 @@ Do not change these without an accepted AIP and a migration plan:
 | Tier `standard` gross price | from `$0.0005` |
 | Tier `complex` gross price | from `$0.002` |
 | Tier `premium` gross price | from `$0.005` |
-| Receipt default TTL | 600 seconds |
-| Idempotency dedupe window | 24 hours |
-| Receipt signature | Ed25519 |
-| Webhook signature | HMAC-SHA256 |
-| Control-plane transport | TLS 1.3 |
+| Receipt signature profile | Ed25519 / EdDSA under the current receipt design |
+| Webhook signature profile | HMAC-SHA256 where the documented webhook profile is used |
+
+The following are **profile/deployment parameters, not universal hard-coded protocol constants**:
+
+| Parameter | Rule |
+|---|---|
+| Receipt TTL / expiry | Defined by the active receipt/profile; expiry validation is mandatory |
+| Idempotency retention window | Must be sufficient for the implementation's retry/reconciliation model; no universal 24-hour constant is defined here |
+| Control-plane TLS version/configuration | Use authenticated, confidential modern TLS appropriate to the active deployment/security policy; do not invent an unevidenced fixed version claim |
 
 Current AIFP-1 amount conservation is normative:
 
@@ -126,6 +131,8 @@ creator_amount = 0
 ```
 
 Never use the gross tier value as `merchant_amount`. Never implement or document the current AIFP-1 1% fee as an additional surcharge above the displayed/quoted action price.
+
+Budget/policy rejection belongs **before signing/broadcasting**. A `/v1/pay` settlement-verification path must not deny the receipt for an otherwise valid settlement matching an already-issued payable quote solely because a budget threshold is discovered after payment.
 
 `docs.yml` and `scripts/check-economics.py` must reject active economics drift, including gross-as-merchant examples. Historical material may retain superseded values only when it is explicitly labeled legacy or superseded.
 
@@ -151,10 +158,11 @@ Never use the gross tier value as `merchant_amount`. Never implement or document
   per `SECURITY.md`. Never post them in issues, PRs, or chat.
 - The `.githooks/pre-push` script runs `gitleaks` locally if
   installed; CI runs the same scan via `secret-scan.yml`.
-- Receipt, JWKS, webhook, quote-economics, and settlement-semantics changes are security-sensitive and
-  require security review.
-- Do not weaken audience, resource, gross amount, split, expiry, or nonce
+- Receipt, JWKS, webhook, quote-economics, settlement-semantics, and
+  post-payment lifecycle changes are security-sensitive and require review.
+- Do not weaken audience, resource, gross amount, split, expiry, or replay/idempotency
   validation in docs, OpenAPI, JSON Schemas, or SDKs.
+- Do not put AIFP-3 Agent Passport security semantics into AIFP-1 unless a cross-protocol integration explicitly requires them and cites the AIFP-3 source.
 
 ## Governance
 
