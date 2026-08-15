@@ -30,32 +30,44 @@ Current AIFP-1 reference values:
 
 | Item | Current value |
 |---|---:|
-| Standard | `$0.0005` |
-| Complex | `$0.002` |
-| Premium | `$0.005` |
-| AiFinPay protocol fee | `1%` / `100` bps |
+| Standard gross payer price | `$0.0005` |
+| Complex gross payer price | `$0.002` |
+| Premium gross payer price | `$0.005` |
+| AiFinPay protocol fee | `1%` / `100` bps of gross |
 | Creator/referral fee | `0` bps |
-| Merchant amount | `99%` before external network/settlement costs |
+| Merchant amount | `99%` of gross before external network/settlement costs |
+| Payer settlement amount | `100%` of gross |
+| Fee-on-top | Not current AIFP-1 semantics |
 
 AIFP-2/x402 uses `0/0` AiFinPay fees.
 
-Old microcent prices and `100/1` belong only in clearly marked historical/superseded sections.
+Old microcent prices, `100/1`, and fee-on-top AIFP-1 behavior belong only in clearly marked historical/superseded sections.
 
 ## 3. Money Formatting
 
 - Use decimal strings in API/JSON examples: `"0.0005"`, not floating-point literals when exactness matters.
+- Use **gross amount** for the full AIFP-1 commercial price paid by the agent.
+- Use **merchant amount** only for the merchant's 99% net share after the AiFinPay fee.
+- Use **protocol fee amount** for the 1% AiFinPay share deducted from gross.
+- Use **creator amount** for the creator/referral share; under the current profile it is zero.
+- Use **payer total amount** for the settlement-rail amount; under current AIFP-1 it equals gross.
 - For on-chain amounts, document token base units and decimals explicitly.
 - Never round away a fee/profile mismatch in security-sensitive examples.
-- Distinguish merchant amount, AiFinPay fee, creator/referral amount, total payer amount, and network gas where applicable.
+- Never use the gross reference tier value as `merchant_amount`.
+- Never describe the 1% AIFP-1 fee as added on top of the displayed/quoted action price.
+- Distinguish external network gas from the AIFP-1 commercial gross amount.
 
 ## 4. Protocol Terminology
 
 Use these terms consistently:
 
 - **AIFP-1 challenge** — merchant payment-required message using HTTP `402`;
-- **binding quote** — authoritative pre-payment merchant/resource/route/amount statement;
+- **binding quote** — authoritative pre-payment merchant/resource/route/gross/split statement;
+- **gross amount** — full commercial AIFP-1 amount settled by the payer, excluding external network/gas cost;
+- **merchant amount** — 99% merchant share of gross under the current profile;
+- **protocol fee amount** — 1% AiFinPay share of gross under the current profile;
 - **settlement reference / `tx_ref`** — evidence submitted after payer execution;
-- **settlement verifier** — component that checks the actual chain/rail evidence;
+- **settlement verifier** — component that checks the actual chain/rail evidence and gross-inclusive split;
 - **receipt** — signed paid-access authorization issued after verified settlement;
 - **route class** — AIFP-1 or AIFP-2/x402;
 - **payment-live** — route with approved current implementation/evidence, not merely deployed.
@@ -102,7 +114,11 @@ Example AIFP-1 quote fragment:
 {
   "route_class": "AIFP-1",
   "pricing_tier": "standard",
-  "merchant_amount": "0.0005",
+  "gross_amount": "0.0005",
+  "payer_total_amount": "0.0005",
+  "merchant_amount": "0.000495",
+  "protocol_fee_amount": "0.000005",
+  "creator_amount": "0",
   "treasury_bps": 100,
   "creator_bps": 0
 }
