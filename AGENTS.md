@@ -99,19 +99,23 @@ Do not change these without an accepted AIP and a migration plan:
 
 | Constant | Value |
 |---|---|
-| Protocol fee rate | `0.01` (1%) |
-| Merchant settlement rate | `0.99` (99%, before network/settlement costs) |
-| Tier `standard` | from `$0.00001` |
-| Tier `complex` | from `$0.00006` |
-| Tier `premium` | from `$0.00010` |
+| AIFP-1 protocol fee | `0.01` (1%, `100` bps) |
+| AIFP-1 creator/referral fee | `0` (0 bps) |
+| AIFP-1 merchant settlement rate | `0.99` (99%, before network/settlement costs) |
+| AIFP-2/x402 AiFinPay protocol fee | `0` (0%, separate route profile) |
+| Tier `standard` | from `$0.0005` |
+| Tier `complex` | from `$0.002` |
+| Tier `premium` | from `$0.005` |
 | Receipt default TTL | 600 seconds |
 | Idempotency dedupe window | 24 hours |
 | Receipt signature | Ed25519 |
 | Webhook signature | HMAC-SHA256 |
 | Control-plane transport | TLS 1.3 |
 
-`docs.yml` greps for legacy markers (`$0.01`, `$0.04`, `$0.08`, `0.3%`,
-`0.6%`, `0.9%`, `complexity`) and fails the build if any reappear.
+`docs.yml` must reject superseded current-product markers such as
+`$0.00001`, `$0.00006`, `$0.00010`, current-looking `100/1`, and a non-zero
+creator/referral fee. Historical material may retain superseded values only when
+it is explicitly labeled legacy or superseded.
 
 ## Pull Request Workflow
 
