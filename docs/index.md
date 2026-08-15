@@ -21,7 +21,7 @@ Welcome to the AiFinPay AIFP-1 documentation portal. This is the public entry po
 |---|---|
 | [Architecture](architecture.md) | System model, trust boundaries, data plane, control plane |
 | [Core Concepts](core-concepts/index.md) | HTTP 402 flow, pricing, security, and conformance |
-| [Protocol Economics](economics.md) | AIFP-1 pricing tiers, exact `100/0` fee profile, and AIFP-2 `0/0` separation |
+| [Protocol Economics](economics.md) | Gross AIFP-1 pricing, exact 99/1/0 split, and AIFP-2 `0/0` separation |
 | [Security Model](security-model.md) | Receipt signing, replay prevention, wallet policy, key rotation |
 | [Conformance](conformance.md) | Compatibility matrix and future certification plan |
 | [Developer Experience](developer-experience.md) | SDKs, examples, sandbox, OpenAPI, Postman, schemas |
@@ -39,9 +39,9 @@ Welcome to the AiFinPay AIFP-1 documentation portal. This is the public entry po
 ```mermaid
 flowchart LR
     A["Agent requests resource"] --> B["Merchant returns AIFP-1 402 challenge"]
-    B --> C["Agent requests binding quote"]
-    C --> D["Agent settles from its wallet"]
-    D --> E["AiFinPay verifies settlement"]
+    B --> C["Agent requests gross-inclusive binding quote"]
+    C --> D["Agent settles gross amount from its wallet"]
+    D --> E["AiFinPay verifies settlement + 99/1/0 split"]
     E --> F["AiFinPay signs receipt"]
     F --> G["Agent retries request"]
     G --> H["Merchant verifies receipt locally"]
@@ -52,14 +52,16 @@ flowchart LR
 
 | Item | Current AIFP-1 value |
 |---|---:|
-| Standard action | `$0.0005` |
-| Complex action | `$0.002` |
-| Premium action | `$0.005` |
-| AiFinPay protocol fee | `1%` (`100` bps) |
+| Standard gross action | `$0.0005` |
+| Complex gross action | `$0.002` |
+| Premium gross action | `$0.005` |
+| Payer settlement | `100%` of gross quoted amount |
+| AiFinPay protocol fee | `1%` of gross (`100` bps) |
 | Creator/referral fee | `0%` (`0` bps) |
-| Merchant amount | `99%` before external network/settlement costs |
+| Merchant amount | `99%` of gross before external network/settlement costs |
+| Fee-on-top | Not permitted for current AIFP-1 |
 
-AIFP-2/x402 is a separate agent-payment route profile with `0/0` AiFinPay fees; do not apply AIFP-1's 1% merchant-monetization fee to AIFP-2.
+The AIFP-1 action price is the gross amount paid by the agent. The 1% AiFinPay fee is deducted from gross, not added on top. AIFP-2/x402 is a separate agent-payment route profile with `0/0` AiFinPay fees; do not apply AIFP-1's 1% merchant-monetization fee to AIFP-2.
 
 ## Real-World Use Cases
 
@@ -75,4 +77,3 @@ AIFP-2/x402 is a separate agent-payment route profile with `0/0` AiFinPay fees; 
 ## Canonical Documents
 
 The canonical documentation package lives in [`docs/aifp/`](aifp/README.md). These documents govern protocol behavior and should be treated as source of truth.
-
