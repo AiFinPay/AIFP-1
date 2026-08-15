@@ -16,21 +16,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Run markdownlint
+        id: markdownlint
+        continue-on-error: true
         shell: bash
         run: |
-          set +e
-          output="$(npx --yes markdownlint-cli2 "**/*.md" "!node_modules" 2>&1)"
-          status=$?
-          printf '%s\n' "$output"
-          if [ "$status" -ne 0 ]; then
-            while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                safe="${line//'%'/'%25'}"
-                safe="${safe//$'\r'/'%0D'}"
-                safe="${safe//$'\n'/'%0A'}"
-                echo "::error title=markdownlint::$safe"
-              fi
-            done <<< "$output"
-          fi
-          exit "$status"
+          set -o pipefail
+          npx --yes markdownlint-cli2 "**/*.md" "!node_modules" 2>&1 | tee markdownlint-report.txt
+
+      - name: Upload markdownlint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdownlint-report
+          path: markdownlint-report.txt
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce markdownlint result
+        if: steps.markdownlint.outcome == 'failure'
+        run: |
+          echo "markdownlint reported violations; inspect markdownlint-report artifact."
+          exit 1
