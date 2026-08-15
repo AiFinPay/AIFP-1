@@ -1,87 +1,112 @@
-# MCP Server Quick Start
+# MCP + AIFP-1 Quick Start
 
-## What You Need
+AiFinPay's MCP tooling can expose payment operations to an AI-agent host. This page describes the AIFP-1 route semantics an MCP integration must preserve; verify the current published MCP package/version and exact tool names in the SDK repository/package registry.
 
-- Node.js 20 LTS or newer.
-- A local MCP host or editor integration.
-- An AiFinPay sandbox merchant endpoint.
-- A test wallet funded with sandbox tokens.
-- A sandbox API key that starts with `sk_test_`.
-- A test token source for sandbox funds. The public faucet URL is published with the hosted sandbox.
+## Current AIFP-1 Economics
 
-## Install
+| Tier | Reference price |
+|---|---:|
+| `standard` | `$0.0005` |
+| `complex` | `$0.002` |
+| `premium` | `$0.005` |
 
-```bash
-npm install @aifinpay/mcp@alpha @aifinpay/agent@alpha
+AIFP-1 uses `treasuryBps=100`, `creatorBps=0`. AIFP-2/x402 is separate and uses `0/0`.
+
+## Required MCP Routing Behavior
+
+An MCP payment tool that accepts an arbitrary URL should not treat every `402` as the same payment protocol.
+
+Safe high-level routing:
+
+```text
+request
+  ↓
+AIFP-1 challenge? ── yes → AIFP-1 quote → local payer settlement → verifier → receipt → retry
+  │
+  no
+  ↓
+x402 challenge? ──── yes → AIFP-2/x402 route/version handling
+  │
+  no
+  ↓
+return unsupported/non-payment response
 ```
 
-`alpha` means the API may change while the SDK surface is still being settled.
+An explicit/forced x402 facilitator selection means x402 intent and should bypass AIFP-1 detection. Conversely, an AIFP-1 budget rejection must not be retried through x402 to bypass the caller's spend cap.
 
-## Sandbox Example
-
-```ts
-import { AIFPMCPServer } from "@aifinpay/mcp";
-
-async function main() {
-  const server = new AIFPMCPServer({
-    apiKey: process.env.AIFP_AGENT_KEY!,
-    walletId: process.env.AIFP_WALLET_ID!,
-    baseUrl: "https://sandbox.api.aifinpay.io",
-  });
-
-  await server.start();
-
-  // The MCP layer exposes protocol calls to the developer tool or agent host.
-  const response = await server.call("aifinpay.quote", {
-    merchant_id: "mrch_sandbox_01",
-    resource: "/api/data",
-    pricing_tier: "standard"
-  });
-
-  console.log(JSON.stringify(response, null, 2));
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
-```
-
-Example sandbox response:
+## Conceptual AIFP-1 Tool Input
 
 ```json
 {
-  "ok": true,
-  "tool": "aifinpay.quote",
-  "quote_id": "qt_sbx_01",
-  "merchant_id": "mrch_sandbox_01",
+  "merchant_id": "mrch_example",
   "resource": "/api/data",
   "pricing_tier": "standard",
-  "amount": "0.00001",
-  "currency": "USD"
+  "max_amount_usd": "0.0005"
 }
 ```
 
-## What Happened Under The Hood
+The returned binding quote must be validated before any signing action:
 
-The MCP server exposes protocol actions to a developer tool without embedding payment logic in
-the app itself. The sandbox path still starts with a `402` challenge, then a quote, then a payment,
-then a receipt-bound retry. This keeps the protocol aligned with [x402 Flow](../core-concepts/x402-flow.md).
-Machine-action policy is declared in `.well-known/aifinpay.json`.
+```json
+{
+  "route_class": "AIFP-1",
+  "merchant_amount": "0.0005",
+  "treasury_bps": 100,
+  "creator_bps": 0,
+  "asset": "USDC",
+  "chain": "polygon"
+}
+```
 
-## Going To Production
+The exact chain/asset above is illustrative. A tool should only offer a route that is current in the SDK/backend registry and independently verifiable.
 
-- Audit the merchant contract and receipt verification path.
-- Set explicit spend limits on the wallet.
-- Switch the base URL from sandbox to production only after approval.
-- Replace sandbox keys with production keys.
-- Add monitoring for 402, 409, 410, 422, and 429 responses.
-- Confirm the payout account and settlement rail before enabling live spend.
+## Non-Custodial Settlement
 
-## Common Mistakes
+MCP tooling may orchestrate transaction construction but must not require the user/agent to send a private key or recovery phrase to the receipt service.
 
-- Starting the MCP server without a wallet policy.
-- Pointing the MCP host at a production endpoint during testing.
-- Forgetting to clear sandbox credentials after the demo.
-- Reusing an expired quote.
-- Reusing a nonce.
+Expected flow:
+
+1. obtain verifier-ready AIFP-1 quote;
+2. enforce MCP/agent budget policy;
+3. construct transaction for the canonical route;
+4. sign locally in the agent wallet;
+5. broadcast;
+6. submit `tx_ref` for verification;
+7. receive receipt only after verification;
+8. retry the protected request.
+
+## Budget Handling
+
+MCP tools must treat budget limits as hard policy.
+
+- `max_amount_usd` should be checked before signing;
+- daily/window caps should be concurrency-safe;
+- a budget skip must not be "laundered" into a different payment protocol/facilitator;
+- ambiguous broadcast errors need reconciliation before a new payment attempt.
+
+## Protocol Classification
+
+### AIFP-1
+
+Recognize explicit AIFP-1 protocol/challenge structure and apply the `100/0` merchant-monetization route.
+
+### AIFP-2/x402
+
+Recognize the actual supported x402 wire version/scheme. Unsupported x402 versions should return an explicit unsupported-version error rather than being mislabeled as AIFP-1 or as a generic facilitator failure.
+
+## Going Live
+
+Before an MCP integration enables real spend on an AIFP-1 route, confirm:
+
+- canonical deployment target;
+- current `100/0` economics;
+- correct token decimals;
+- SDK transaction construction;
+- backend settlement verifier;
+- replay/idempotency behavior;
+- durable spend-cap behavior where promised;
+- end-to-end evidence for the selected chain/asset.
+
+Do not assume that installing the MCP package proves all documented chains/routes are payment-live.
+
+See [AIFP-1 HTTP 402 Flow](../core-concepts/x402-flow.md) and [Agent SDK Specification](../aifp/03-AI-Agent-SDK-Specification.md).
