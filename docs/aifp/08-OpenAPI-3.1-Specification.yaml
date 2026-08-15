@@ -21,6 +21,11 @@ info:
       - payer settlement amount: exactly the quoted gross amount
       - fee-on-top: not permitted
 
+    Budget and other payer/account spend-policy rejection belongs before signing
+    or broadcasting. Once a payer has executed a settlement matching an already-
+    issued payable quote, settlement verification must not withhold the receipt
+    solely because a budget threshold is discovered after payment.
+
     AIFP-2/x402 is a separate 0/0 route profile and is outside this OpenAPI
     contract. This specification does not claim that every route, asset, chain,
     or hosted endpoint is production-live.
@@ -71,6 +76,10 @@ paths:
         active verifier can validate. Unsupported or unverifiable routes must
         fail before the payer is instructed to send funds.
 
+        Payer/account budget and spend-policy checks MUST also be resolved before
+        the payer signs or broadcasts. A budget rejection belongs at this stage
+        (or in the local SDK/wallet policy layer), not after a valid settlement.
+
         The quoted gross_amount is the full AIFP-1 commercial amount paid by
         the payer. The protocol fee is deducted from gross; it is not added on
         top. For current AIFP-1 economics, payer_total_amount equals gross_amount,
@@ -119,6 +128,8 @@ paths:
                     expires_at: "2026-08-15T12:00:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Proposed payment is rejected by a pre-payment payer/account budget or policy rule. No payable quote should be acted on and no settlement should be broadcast.
         '409':
           description: Requested profile conflicts with route policy.
         '422':
@@ -136,7 +147,13 @@ paths:
         another explicitly supported payer rail. This endpoint verifies the
         submitted settlement reference against the binding quote, including
         the gross-inclusive 99/1 AIFP-1 split. A receipt MUST NOT be issued
-        unless verification succeeds.
+        unless settlement verification succeeds.
+
+        This is a post-payment verification endpoint. If the payer executed a
+        settlement that validly matches an already-issued payable quote, this
+        endpoint MUST NOT deny the corresponding receipt solely because a budget
+        or spend-policy threshold is discovered after settlement. Budget/policy
+        rejection must happen before signing/broadcasting.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -172,7 +189,7 @@ paths:
         '422':
           description: Settlement does not match the quote or required gross-inclusive economics.
         '503':
-          description: Settlement verifier unavailable; no receipt issued.
+          description: Settlement verifier unavailable; no receipt issued. Reconcile the same settlement reference rather than broadcasting a replacement payment.
 
   /v1/receipt/{receipt_id}:
     get:
@@ -250,7 +267,7 @@ components:
       schema:
         type: string
         minLength: 16
-      description: Unique key used to prevent duplicate payment processing.
+      description: Unique key used to prevent duplicate settlement-verification processing. It does not authorize a second payment.
 
   schemas:
     PricingTier:
