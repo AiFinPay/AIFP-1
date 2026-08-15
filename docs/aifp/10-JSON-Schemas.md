@@ -11,16 +11,27 @@ This document defines the current machine-readable object shapes required by the
 
 | Field | AIFP-1 value |
 |---|---:|
-| `standard` reference action | `$0.0005` |
-| `complex` reference action | `$0.002` |
-| `premium` reference action | `$0.005` |
+| `standard` gross reference action | `$0.0005` |
+| `complex` gross reference action | `$0.002` |
+| `premium` gross reference action | `$0.005` |
 | `protocolFeeRate` | `0.01` |
 | `merchantSettlementRate` | `0.99` |
 | `creatorFeeRate` | `0` |
 | `treasury_bps` | `100` |
 | `creator_bps` | `0` |
+| settlement semantics | `gross-inclusive` / fee-from-gross |
 
-AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from these schemas.
+The reference action price is the **gross payer amount**. The current AIFP-1 relationship is:
+
+```text
+gross_amount = payer_total_amount
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+protocol_fee_amount = 1% of gross
+merchant_amount = 99% of gross
+creator_amount = 0
+```
+
+AIFP-1 MUST NOT add the 1% protocol fee on top of the displayed/quoted action price. AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from these schemas.
 
 ---
 
@@ -42,12 +53,13 @@ AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from thes
     },
     "referenceActionPrice": {
       "type": "string",
-      "enum": ["0.0005", "0.002", "0.005"]
+      "enum": ["0.0005", "0.002", "0.005"],
+      "description": "Gross reference action price paid by the agent."
     },
     "decimalAmount": {
       "type": "string",
       "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
-      "examples": ["0.0005", "0.002", "0.005", "1", "10.25"]
+      "examples": ["0", "0.000005", "0.000495", "0.0005", "0.002", "0.005", "1", "10.25"]
     },
     "protocolFeeRate": {
       "type": "string",
@@ -102,7 +114,11 @@ AIFP-2/x402 uses a separate `0/0` fee profile and MUST NOT be inferred from thes
     "resource": { "type": "string", "minLength": 1 },
     "scope": { "type": "string" },
     "pricing_tier": { "type": "string", "enum": ["standard", "complex", "premium"] },
-    "reference_price_usd": { "type": "string", "enum": ["0.0005", "0.002", "0.005"] },
+    "reference_price_usd": {
+      "type": "string",
+      "enum": ["0.0005", "0.002", "0.005"],
+      "description": "Gross reference action price paid by the agent."
+    },
     "quote_endpoint": { "type": "string", "format": "uri" },
     "expires_at": { "type": "string", "format": "date-time" }
   },
@@ -152,7 +168,11 @@ The challenge is informational. The **binding Quote** controls the actual settle
     "route_class",
     "merchant_id",
     "resource",
+    "gross_amount",
+    "payer_total_amount",
     "merchant_amount",
+    "protocol_fee_amount",
+    "creator_amount",
     "treasury_bps",
     "creator_bps",
     "asset",
@@ -167,8 +187,30 @@ The challenge is informational. The **binding Quote** controls the actual settle
     "resource": { "type": "string", "minLength": 1 },
     "scope": { "type": "string" },
     "pricing_tier": { "type": "string", "enum": ["standard", "complex", "premium"] },
-    "merchant_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
-    "total_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "gross_amount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "Full AIFP-1 commercial amount settled by the payer, excluding external gas/network cost."
+    },
+    "payer_total_amount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "Settlement-rail payer amount; MUST equal gross_amount for current AIFP-1."
+    },
+    "merchant_amount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "Merchant net share; 99% of gross under current AIFP-1 economics."
+    },
+    "protocol_fee_amount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "AiFinPay share; 1% of gross under current AIFP-1 economics."
+    },
+    "creator_amount": {
+      "type": "string",
+      "const": "0"
+    },
     "currency": { "type": "string", "default": "USD" },
     "treasury_bps": { "type": "integer", "const": 100 },
     "creator_bps": { "type": "integer", "const": 0 },
@@ -184,7 +226,21 @@ The challenge is informational. The **binding Quote** controls the actual settle
 }
 ```
 
-A quote MUST NOT be returned as payable if the selected route cannot be verified by the active settlement verifier.
+For the Standard preset, the canonical decimal example is:
+
+```json
+{
+  "gross_amount": "0.0005",
+  "payer_total_amount": "0.0005",
+  "merchant_amount": "0.000495",
+  "protocol_fee_amount": "0.000005",
+  "creator_amount": "0",
+  "treasury_bps": 100,
+  "creator_bps": 0
+}
+```
+
+A quote MUST NOT be returned as payable if the selected route cannot be verified by the active settlement verifier or if the route implements fee-on-top rather than the current gross-inclusive profile.
 
 ---
 
@@ -226,6 +282,10 @@ A private key, recovery phrase, or raw signing secret MUST NOT be part of this r
     "protocol",
     "route_class",
     "merchant_id",
+    "gross_amount",
+    "merchant_amount",
+    "protocol_fee_amount",
+    "creator_amount",
     "status",
     "receipt",
     "issued_at",
@@ -240,7 +300,10 @@ A private key, recovery phrase, or raw signing secret MUST NOT be part of this r
     "scope": { "type": "string" },
     "quote_id": { "type": "string" },
     "tx_ref": { "type": "string" },
+    "gross_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
     "merchant_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "protocol_fee_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "creator_amount": { "type": "string", "const": "0" },
     "treasury_bps": { "type": "integer", "const": 100 },
     "creator_bps": { "type": "integer", "const": 0 },
     "status": { "type": "string", "enum": ["settled", "final"] },
@@ -252,7 +315,7 @@ A private key, recovery phrase, or raw signing secret MUST NOT be part of this r
 }
 ```
 
-A receipt may only be created after the settlement verifier confirms the binding quote.
+A receipt may only be created after the settlement verifier confirms the binding quote, including `payer_total_amount = gross_amount` and the 99/1/0 amount split.
 
 ---
 
@@ -291,7 +354,11 @@ Pending is not equivalent to verified or paid. Protected access MUST NOT be gran
     "receipt": { "type": "string", "minLength": 1 },
     "merchant_id": { "type": "string", "minLength": 1 },
     "resource": { "type": "string", "minLength": 1 },
-    "required_amount": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" }
+    "required_amount": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+      "description": "Required gross paid amount or quota-equivalent amount for the requested resource."
+    }
   },
   "additionalProperties": false
 }
@@ -326,13 +393,16 @@ Merchant implementations SHOULD verify receipts locally where supported. Assiste
 Machine-readable AIFP-1 artifacts are conformant only if they agree on all of the following:
 
 1. protocol/route class is `AIFP-1`;
-2. standard preset prices are `$0.0005 / $0.002 / $0.005`;
+2. standard preset prices are gross payer prices `$0.0005 / $0.002 / $0.005`;
 3. `protocolFeeRate = 0.01` and `treasury_bps = 100`;
 4. `creatorFeeRate = 0` and `creator_bps = 0`;
 5. `merchantSettlementRate = 0.99` before external network/settlement costs;
-6. payer settlement reference is verified before receipt issuance;
-7. no private signing key is sent to the receipt service;
-8. unsupported or unverifiable settlement routes fail before payment;
-9. AIFP-2/x402 `0/0` is not silently represented as AIFP-1.
+6. `payer_total_amount = gross_amount`;
+7. `merchant_amount + protocol_fee_amount + creator_amount = gross_amount`;
+8. the 1% protocol fee is deducted from gross and is not added on top;
+9. payer settlement reference is verified before receipt issuance;
+10. no private signing key is sent to the receipt service;
+11. unsupported or unverifiable settlement routes fail before payment;
+12. AIFP-2/x402 `0/0` is not silently represented as AIFP-1.
 
-Legacy schema examples using `$0.00001 / $0.00006 / $0.00010` or `100/1` are superseded and must not be used for current integration generation.
+Legacy schema examples using `$0.00001 / $0.00006 / $0.00010`, `100/1`, or fee-on-top AIFP-1 semantics are superseded and must not be used for current integration generation.

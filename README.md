@@ -41,14 +41,24 @@ AIFP-1 is **not the same protocol as AIFP-2/x402**. HTTP `402` is a shared HTTP 
 | **AIFP-1** | `$0.0005` | `$0.002` | `$0.005` | `1%` / `100` bps | `0` bps |
 | **AIFP-2/x402** | provider-defined | provider-defined | provider-defined | `0%` | `0%` |
 
-For the current AIFP-1 merchant-monetization profile, the merchant receives 99% before external network or settlement costs. Legacy `$0.00001 / $0.00006 / $0.00010` pricing and `100/1` economics are superseded current-product guidance.
+For AIFP-1, the displayed/quoted action price is the **gross amount paid by the agent**. The 1% AiFinPay fee is deducted from that gross amount; it is **not added on top**. The merchant receives 99% before external network or settlement costs, and the creator/referral leg is 0%.
+
+Reference examples:
+
+| Tier | Agent gross payment | Merchant 99% | AiFinPay 1% |
+|---|---:|---:|---:|
+| Standard | `$0.0005` | `$0.000495` | `$0.000005` |
+| Complex | `$0.002` | `$0.00198` | `$0.00002` |
+| Premium | `$0.005` | `$0.00495` | `$0.00005` |
+
+Legacy `$0.00001 / $0.00006 / $0.00010` pricing, `100/1` economics, and fee-on-top AIFP-1 interpretations are superseded current-product guidance.
 
 ## Core Security Invariants
 
 1. A payable quote must not be issued for a route the active verifier cannot validate.
 2. A receipt must not be issued merely because a client supplied a transaction hash.
 3. The payer keeps signing local; `/v1/pay` receives the settlement reference, not the private key or recovery phrase.
-4. AIFP-1 must use `100/0`; AIFP-2/x402 must use `0/0`; cross-route fallback fails closed.
+4. AIFP-1 must use gross-inclusive `100/0` economics: gross payer amount = merchant amount + 1% AiFinPay fee; AIFP-2/x402 must use `0/0`; cross-route fallback fails closed.
 5. Monetary comparisons use exact decimals/integer base units with asset-decimal awareness.
 6. Replay, duplicate settlement consumption, and idempotency conflicts fail closed.
 
@@ -65,13 +75,13 @@ sequenceDiagram
 
     A->>M: Request protected resource
     M-->>A: 402 + AIFP-1 challenge
-    A->>P: Request binding quote
-    P-->>A: AIFP-1 quote (100/0)
+    A->>P: Request binding gross-inclusive quote
+    P-->>A: AIFP-1 quote (gross = merchant 99% + AiFinPay 1%)
     A->>W: Build + approve settlement under budget policy
     W->>R: Sign + broadcast locally
     R-->>A: tx_ref / settlement reference
     A->>P: Submit quote_id + tx_ref
-    P->>R: Verify actual settlement
+    P->>R: Verify actual settlement and 99/1 split
     P-->>A: Signed receipt after verification
     A->>M: Retry + Payment-Receipt
     M->>M: Verify signature, audience, scope, amount/quota, expiry, replay

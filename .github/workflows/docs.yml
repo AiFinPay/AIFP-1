@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   docs-structure:
     runs-on: ubuntu-latest
@@ -16,6 +19,9 @@ jobs:
           test -f docs/aifp/08-OpenAPI-3.1-Specification.yaml
           test -f docs/aifp/09-Postman-Collection.json
           test -f docs/aifp/10-JSON-Schemas.md
-      - name: Check current pricing markers
+          test -f scripts/check-economics.py
+      - name: Check superseded pricing markers
         run: |
           ! grep -R "\$0\.01\|\$0\.04\|\$0\.08\|0\.3%\|0\.6%\|0\.9%\|complexity" --include='*.md' --include='*.json' --include='*.yaml' .
+      - name: Check AIFP-1 gross-inclusive economics
+        run: python scripts/check-economics.py

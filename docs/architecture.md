@@ -14,13 +14,13 @@ flowchart TB
 
     subgraph Merchant["Merchant Data Plane"]
         Middleware["AIFP-1 Middleware"]
-        Pricing["Resource Pricing / Metering"]
+        Pricing["Gross Resource Pricing / Metering"]
         ReceiptCheck["Receipt Verifier"]
         Protected["Protected Resource"]
     end
 
     subgraph Control["AIFP-1 Control Plane"]
-        Quote["Binding Quote"]
+        Quote["Binding Gross Quote"]
         SettlementVerify["Settlement Verifier"]
         Receipt["Receipt Authority"]
         Ledger["Ledger / Reconciliation"]
@@ -39,7 +39,7 @@ flowchart TB
     ClientPolicy --> Quote
     Quote --> ClientPolicy
     ClientPolicy --> Wallet
-    Wallet -->|sign + broadcast| Target
+    Wallet -->|sign + broadcast gross amount| Target
     Target --> Asset
     Target -->|tx / settlement evidence| SettlementVerify
     Agent -->|tx_ref + quote_id| SettlementVerify
@@ -53,27 +53,38 @@ flowchart TB
 
 ## Economic Profiles
 
-| Route | Treasury | Creator/referral | Purpose |
-|---|---:|---:|---|
-| **AIFP-1** | `100` bps | `0` bps | Merchant AI-traffic/resource monetization |
-| **AIFP-2/x402** | `0` bps | `0` bps | Separate agent-payment route |
+| Route | Payer/quote semantics | Treasury | Creator/referral | Merchant/provider | Purpose |
+|---|---|---:|---:|---:|---|
+| **AIFP-1** | gross payer amount; no fee-on-top | `100` bps of gross | `0` bps | `99%` of gross before external costs | Merchant AI-traffic/resource monetization |
+| **AIFP-2/x402** | provider-defined quoted amount | `0` bps | `0` bps | `100%` of quoted provider amount before external costs | Separate agent-payment route |
 
-Current AIFP-1 reference prices are `$0.0005 / $0.002 / $0.005` for Standard / Complex / Premium.
+Current AIFP-1 gross reference prices are `$0.0005 / $0.002 / $0.005` for Standard / Complex / Premium.
+
+Canonical AIFP-1 conservation:
+
+```text
+payer_total_amount = gross_amount
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+protocol_fee_amount = 1% of gross
+creator_amount = 0
+```
+
+The 1% protocol fee is deducted from gross and is not added on top.
 
 ## Trust Boundaries
 
 | Boundary | Security requirement |
 |---|---|
 | Agent → merchant | A `402` challenge is not payment proof; protected access requires valid receipt/policy |
-| Quote → payer | Quote must bind merchant/resource/amount/route and current `100/0` economics |
-| Payer wallet → settlement rail | Signing remains local to the payer in the non-custodial crypto flow |
-| Settlement rail → verifier | Verifier checks actual chain/rail evidence, not merely the presence of a tx hash |
+| Quote → payer | Quote must bind merchant/resource/gross amount/99-1 split/route and current gross-inclusive `100/0` economics |
+| Payer wallet → settlement rail | Signing remains local to the payer and settles exactly the quoted gross amount in the non-custodial crypto flow |
+| Settlement rail → verifier | Verifier checks actual chain/rail evidence, gross amount, merchant/protocol-fee split, and not merely the presence of a tx hash |
 | Verifier → receipt authority | Receipt is issued only after successful settlement verification |
-| Receipt → merchant | Merchant checks signature, audience, resource/scope, expiry, amount/quota and replay rules |
+| Receipt → merchant | Merchant checks signature, audience, resource/scope, expiry, gross amount/quota and replay rules |
 
 ## Verifier-Readiness Gate
 
-The quote service must not instruct the payer to send funds through a route that the active verifier cannot validate.
+The quote service must not instruct the payer to send funds through a route that the active verifier cannot validate or whose settlement economics differ from the quote.
 
 ```text
 route selected
@@ -84,6 +95,8 @@ asset decimals known?
   ↓ yes
 SDK/transaction semantics known?
   ↓ yes
+gross-inclusive 99/1/0 behavior proven?
+  ↓ yes
 verifier supports exact route/profile?
   ↓ yes
 payable quote may be issued
@@ -91,11 +104,13 @@ payable quote may be issued
 
 Any required answer of `no` means fail **before payment**.
 
+A target is not compatible merely because it exposes `treasuryBps=100`. If it treats the AIFP-1 gross reference price as merchant net and adds 1% on top, it is not current AIFP-1.
+
 ## Merchant Data Plane
 
 The merchant side should remain small and deterministic:
 
-1. identify protected resource and pricing/metering policy;
+1. identify protected resource and gross pricing/metering policy;
 2. decide open/free/blocked/paid access;
 3. return AIFP-1 `402` when payment is required;
 4. validate receipt locally where supported;
@@ -108,9 +123,9 @@ A caller-controlled agent-ID header alone is not sufficient durable identity for
 
 Logical responsibilities include:
 
-- binding quote issuance;
-- route/deployment registry;
-- settlement verification;
+- binding gross quote issuance;
+- route/deployment registry including gross-vs-net semantics;
+- settlement verification and 99/1/0 conservation;
 - receipt issuance;
 - key publication/rotation;
 - financial ledger/reconciliation;
@@ -126,6 +141,7 @@ AIFP-1 is designed to be rail-agnostic, but documentation must distinguish:
 - canonical settlement target;
 - verifier-ready route;
 - SDK-ready route;
+- gross-inclusive-economics verified route;
 - E2E-verified route;
 - approved payment-live route.
 

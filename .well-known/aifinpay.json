@@ -11,13 +11,26 @@
     "schemas": "/docs/aifp/10-JSON-Schemas.md"
   },
   "economics": {
+    "settlement_semantics": "gross-inclusive",
+    "reference_price_semantics": "gross-payer-amount",
     "reference_prices_usd": {
       "standard": "0.0005",
       "complex": "0.002",
       "premium": "0.005"
     },
+    "payer_share": "1.00",
+    "merchant_share": "0.99",
+    "protocol_fee_share": "0.01",
+    "creator_share": "0",
     "treasury_bps": 100,
-    "creator_bps": 0
+    "creator_bps": 0,
+    "fee_on_top": false,
+    "invariants": [
+      "payer_total_amount = gross_amount",
+      "merchant_amount + protocol_fee_amount + creator_amount = gross_amount",
+      "protocol_fee_amount = 1% of gross under exact settlement base-unit arithmetic",
+      "creator_amount = 0"
+    ]
   },
   "related_protocols": {
     "AIFP-2/x402": {
@@ -39,10 +52,12 @@
     "deployed_does_not_imply_payment_live": true,
     "payable_quote_requires_verifier_ready_route": true,
     "receipt_requires_verified_settlement": true,
-    "route_profile_mismatch_fails_closed": true
+    "route_profile_mismatch_fails_closed": true,
+    "fee_on_top_aifp1_fails_closed": true
   },
   "notes": [
     "This manifest describes the AIFP-1 draft protocol and canonical discovery surfaces.",
+    "AIFP-1 reference prices are gross payer amounts; the 1% AiFinPay fee is deducted from gross and is not added on top.",
     "It intentionally does not invent sandbox endpoints, package versions, certifications, or payment-live chain claims.",
     "Actual SDK/package versions and live deployment status must be verified from their implementation repositories, package registries, and route evidence."
   ]

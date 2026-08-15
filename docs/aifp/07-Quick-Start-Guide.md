@@ -12,17 +12,21 @@ This repository is a protocol/specification project. Examples below describe the
 
 ## 1. Current Economics
 
-| Tier | Reference action price | Typical action |
-|---|---:|---|
-| `standard` | `$0.0005` | Simple read, single record, lightweight API request |
-| `complex` | `$0.002` | Search, aggregation, multi-source query, higher compute |
-| `premium` | `$0.005` | AI inference, GPU workload, deep analytics, premium data |
+The reference action price is the **gross amount paid by the agent**. The 1% AiFinPay fee is deducted from gross and is not added on top.
+
+| Tier | Gross payer price | Merchant 99% | AiFinPay 1% | Typical action |
+|---|---:|---:|---:|---|
+| `standard` | `$0.0005` | `$0.000495` | `$0.000005` | Simple read, single record, lightweight API request |
+| `complex` | `$0.002` | `$0.00198` | `$0.00002` | Search, aggregation, multi-source query, higher compute |
+| `premium` | `$0.005` | `$0.00495` | `$0.00005` | AI inference, GPU workload, deep analytics, premium data |
 
 Current AIFP-1 merchant-monetization profile:
 
-- AiFinPay protocol fee: exactly **1% (`100` bps)**;
+- payer settlement amount: **100% gross quoted amount**;
+- AiFinPay protocol fee: exactly **1% of gross (`100` bps)**;
 - creator/referral fee: **0 bps**;
-- merchant amount: **99% before external network/settlement costs**.
+- merchant amount: **99% of gross before external network/settlement costs**;
+- fee-on-top: **not permitted** under the current AIFP-1 profile.
 
 AIFP-2/x402 is a separate agent-payment route profile with `treasuryBps=0` and `creatorBps=0`. Do not apply the AIFP-1 1% fee to an AIFP-2 payment.
 
@@ -60,13 +64,14 @@ An AIFP-1-aware agent should:
 
 1. request the protected resource;
 2. recognize an AIFP-1 `402` challenge;
-3. enforce its own spend/budget policy;
+3. enforce its own spend/budget policy against the gross payer amount;
 4. request a binding quote;
-5. verify that the selected settlement route is supported and verifiable **before paying**;
-6. sign and broadcast settlement from the payer wallet or explicitly supported payment rail;
-7. submit the settlement reference for verification;
-8. receive a receipt only after settlement verification succeeds;
-9. retry the original request with the receipt.
+5. verify `payer_total_amount = gross_amount` and the 99/1/0 split;
+6. verify that the selected settlement route is supported and verifiable **before paying**;
+7. sign and broadcast exactly the gross settlement amount from the payer wallet or explicitly supported payment rail;
+8. submit the settlement reference for verification;
+9. receive a receipt only after settlement verification succeeds;
+10. retry the original request with the receipt.
 
 Conceptual HTTP sequence:
 
@@ -75,9 +80,9 @@ GET /api/data
 → 402 + AIFP-1 challenge
 
 POST /v1/quote
-→ quote_id + merchant + resource/scope + amount + asset/route + expiry
+→ quote_id + merchant + resource/scope + gross_amount + merchant_amount + protocol_fee_amount + asset/route + expiry
 
-[payer signs and broadcasts settlement]
+[payer signs and broadcasts exactly gross_amount]
 
 POST /v1/pay
 { "quote_id": "...", "chain": "...", "asset": "...", "tx_ref": "..." }
@@ -88,7 +93,7 @@ Payment-Receipt: <receipt>
 → protected response when receipt validation succeeds
 ```
 
-A quote must not instruct the agent to pay through a route whose settlement verifier is unavailable or unable to validate the quoted economic profile.
+A quote must not instruct the agent to pay through a route whose settlement verifier is unavailable, unable to validate the quoted economic profile, or implements fee-on-top AIFP-1 semantics.
 
 ---
 
@@ -96,10 +101,10 @@ A quote must not instruct the agent to pay through a route whose settlement veri
 
 AIFP-1 and AIFP-2 are intentionally distinct:
 
-| Route class | AiFinPay fee | Creator/referral | Intended use |
-|---|---:|---:|---|
-| AIFP-1 | `100` bps | `0` bps | Merchant AI-traffic/resource monetization |
-| AIFP-2/x402 | `0` bps | `0` bps | Agent x402-style payment route |
+| Route class | AiFinPay fee | Creator/referral | Settlement semantics | Intended use |
+|---|---:|---:|---|---|
+| AIFP-1 | `100` bps of gross | `0` bps | gross = 99% merchant + 1% AiFinPay | Merchant AI-traffic/resource monetization |
+| AIFP-2/x402 | `0` bps | `0` bps | provider receives quoted amount | Agent x402-style payment route |
 
 Implementations must not silently fall back between these profiles. A route mismatch must fail closed.
 
@@ -110,9 +115,10 @@ Implementations must not silently fall back between these profiles. A route mism
 Before a route is treated as payment-live, the implementation should have evidence for:
 
 - canonical contract/program/address and source provenance;
-- correct route economics (`100/0` for AIFP-1);
+- correct gross-inclusive route economics (`100/0` for AIFP-1);
 - supported asset decimals and amount conversion;
-- quote binding to merchant, resource/scope, amount, asset, chain, and expiry;
+- quote binding to merchant, resource/scope, gross amount, merchant amount, protocol fee amount, asset, chain, and expiry;
+- payer settlement amount equal to gross amount;
 - settlement verification before receipt issuance;
 - replay/idempotency rejection;
 - finality/reorg handling appropriate to the network;
@@ -130,7 +136,7 @@ Merchant-side verification should validate at least the claims required by the a
 - issuer;
 - merchant/audience;
 - resource or scope;
-- paid amount/quota semantics;
+- gross paid amount/quota semantics;
 - expiry;
 - nonce/payment/replay binding.
 
@@ -143,13 +149,15 @@ Monetary values must use exact decimal or integer minor-unit arithmetic, not bin
 Before declaring an integration ready, test:
 
 - unpaid request → `402` with machine-readable AIFP-1 challenge;
-- correct quote uses `$0.0005 / $0.002 / $0.005` reference tiers when those presets are selected;
-- AIFP-1 settlement results in `100/0`, not `100/1`;
-- merchant receives the quoted merchant amount according to the selected contract semantics;
+- correct quote uses `$0.0005 / $0.002 / $0.005` as gross payer prices when those presets are selected;
+- Standard quote produces gross `$0.0005`, merchant `$0.000495`, AiFinPay `$0.000005`, creator `0`;
+- `payer_total_amount = gross_amount` and no 1% is added on top;
+- AIFP-1 settlement results in gross-inclusive `100/0`, not `100/1`;
+- merchant + AiFinPay fee + creator equals gross exactly in settlement base units;
 - creator/referral amount is zero;
 - receipt is never issued for an unverifiable or mismatched settlement;
 - valid receipt unlocks only its intended resource/scope;
-- expired, malformed, cross-merchant, underpaid, or replayed proofs fail closed;
+- expired, malformed, cross-merchant, underpaid, fee-on-top, or replayed proofs fail closed;
 - AIFP-2 `0/0` routes cannot be confused with AIFP-1 `100/0` routes.
 
 ---

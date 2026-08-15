@@ -21,21 +21,29 @@ AIFP-1 is **not the same thing as AIFP-2/x402**. Both may use HTTP `402`, but AI
 
 ## 2. Current Pricing And Economics
 
-| Tier | Reference action price |
-|---|---:|
-| `standard` | `$0.0005` |
-| `complex` | `$0.002` |
-| `premium` | `$0.005` |
+The price shown to the agent is the **gross AIFP-1 action price**. The agent settles that gross amount. AiFinPay receives 1% from gross, the merchant receives 99%, and no creator/referral fee is charged. The 1% protocol fee is **not added on top** of the displayed action price.
+
+| Tier | Gross action price | Merchant 99% | AiFinPay 1% |
+|---|---:|---:|---:|
+| `standard` | `$0.0005` | `$0.000495` | `$0.000005` |
+| `complex` | `$0.002` | `$0.00198` | `$0.00002` |
+| `premium` | `$0.005` | `$0.00495` | `$0.00005` |
 
 Current AIFP-1 settlement profile:
 
 ```text
-treasuryBps = 100   # exactly 1% AiFinPay
-creatorBps  = 0
-merchant    = 99% before external network/settlement costs
+gross_amount        = amount paid by the agent
+payer_total_amount  = gross_amount
+treasuryBps         = 100   # exactly 1% of gross to AiFinPay
+creatorBps          = 0
+protocol_fee_amount = 1% of gross
+creator_amount      = 0
+merchant_amount     = gross_amount - protocol_fee_amount
 ```
 
-Do not use the superseded `$0.00001 / $0.00006 / $0.00010` pricing or a `100/1` creator-fee profile for current integration guidance.
+For a 6-decimal settlement asset, the Standard preset is exactly `500 gross → 495 merchant + 5 AiFinPay` base units.
+
+Do not use the superseded `$0.00001 / $0.00006 / $0.00010` pricing, a `100/1` creator-fee profile, or fee-on-top AIFP-1 semantics for current integration guidance.
 
 ## 3. Integration Flow
 
@@ -50,11 +58,11 @@ sequenceDiagram
     A->>M: Request protected resource
     M-->>A: 402 + AIFP-1 challenge
     A->>P: Request binding quote
-    P-->>A: AIFP-1 quote (100/0)
-    A->>R: Sign + broadcast settlement from payer wallet
+    P-->>A: Gross-inclusive AIFP-1 quote (99/1/0)
+    A->>R: Sign + broadcast gross settlement from payer wallet
     R-->>A: tx_ref / settlement reference
     A->>P: Submit quote_id + tx_ref
-    P->>R: Verify settlement
+    P->>R: Verify gross amount + 99/1 split
     P-->>A: Signed receipt only after verification
     A->>M: Retry + receipt
     M->>M: Verify receipt locally
@@ -84,25 +92,41 @@ Content-Type: application/json
 }
 ```
 
+Here `reference_price_usd` is the gross price the payer expects to settle, not the 99% merchant-net amount.
+
 Challenge generation must be side-effect free. Returning a `402` must not itself consume paid quota or charge the payer.
 
 A merchant should not describe this challenge as x402 merely because its HTTP status is `402`.
 
 ## 5. Resource Pricing
 
-A simple static pricing policy can map routes to the three reference tiers:
+A simple static pricing policy can map routes to the three gross reference tiers:
 
 ```ts
 type Tier = "standard" | "complex" | "premium";
 
-const REFERENCE_PRICE_USD: Record<Tier, string> = {
+const GROSS_REFERENCE_PRICE_USD: Record<Tier, string> = {
   standard: "0.0005",
   complex: "0.002",
   premium: "0.005"
 };
 ```
 
-The binding quote, not a local display string, is authoritative for a particular payment. Merchant middleware should use the effective paid quota/receipt claims when authorizing access.
+The binding quote, not a local display string, is authoritative for a particular payment. A conforming quote makes the breakdown explicit:
+
+```json
+{
+  "gross_amount": "0.0005",
+  "payer_total_amount": "0.0005",
+  "merchant_amount": "0.000495",
+  "protocol_fee_amount": "0.000005",
+  "creator_amount": "0",
+  "treasury_bps": 100,
+  "creator_bps": 0
+}
+```
+
+Merchant middleware should use the effective paid quota/receipt claims when authorizing access.
 
 Any future dynamic/custom pricing must be explicit and deterministic; stale AIP examples must not be treated as active policy.
 
@@ -129,19 +153,19 @@ Before granting paid access, verify the active receipt profile at minimum:
 3. issuer;
 4. merchant/audience;
 5. resource or allowed scope;
-6. paid amount/quota sufficiency;
+6. gross paid amount/quota sufficiency;
 7. expiry/freshness;
 8. replay/consumption/idempotency rules.
 
 Pseudocode:
 
 ```ts
-async function authorizePaidRequest({ receipt, merchantId, resource, requiredAmount }) {
+async function authorizePaidRequest({ receipt, merchantId, resource, requiredGrossAmount }) {
   const claims = await verifySignatureAndClaims(receipt);
 
   if (claims.merchant_id !== merchantId) throw new Error("merchant mismatch");
   if (!scopeCovers(claims, resource)) throw new Error("resource mismatch");
-  if (!exactDecimalGte(claims.paid_amount, requiredAmount)) throw new Error("underpaid");
+  if (!exactDecimalGte(claims.gross_amount, requiredGrossAmount)) throw new Error("underpaid");
   if (isExpired(claims)) throw new Error("expired");
   if (!(await consumeOrMeterAtomically(claims, resource))) throw new Error("replay/quota exhausted");
 
@@ -160,7 +184,7 @@ A paid receipt may be scoped to:
 - a merchant-wide quota;
 - another explicitly defined scope.
 
-If one receipt covers multiple routes, the merchant must meter each actual action at its configured weight/price. A premium action cannot consume only one standard unit unless the protocol policy explicitly prices it that way.
+If one receipt covers multiple routes, the merchant must meter each actual action at its configured gross weight/price. A premium action cannot consume only one standard unit unless the protocol policy explicitly prices it that way.
 
 Metering must be atomic where parallel requests could overspend the same paid quota.
 
@@ -177,18 +201,19 @@ If a hosted gateway proxies to a merchant upstream:
 
 ## 10. Route And Settlement Readiness
 
-The merchant should only expose a payable AIFP-1 route when the selected settlement path is verifier-ready.
+The merchant should only expose a payable AIFP-1 route when the selected settlement path is verifier-ready and implements the gross-inclusive 99/1/0 split.
 
 A route is not ready merely because:
 
 - a contract/program address exists;
 - a chain was deployed previously;
 - an SDK can build a transaction;
-- an RPC node returns the transaction hash.
+- an RPC node returns the transaction hash;
+- a contract reports `treasuryBps = 100` while actually adding that fee on top of the merchant amount.
 
 The full payment path should prove:
 
-`402 → quote → payer settlement → verifier → 100/0 amounts → receipt → merchant verification → protected access → replay rejection`
+`402 → gross quote → payer settles gross → verifier → 99% merchant / 1% AiFinPay / 0% creator → receipt → merchant verification → protected access → replay rejection`
 
 If the verifier is unavailable or does not understand the deployed contract/profile, fail before payment.
 
@@ -202,7 +227,7 @@ Recommended behavior:
 | `403` | policy or receipt authorization failure |
 | `409` | replay/idempotency conflict |
 | `410` | quote/authorization expired |
-| `422` | receipt or settlement binding mismatch |
+| `422` | receipt, settlement, or gross/net split mismatch |
 | `425` | settlement/finality pending |
 | `429` | rate/policy limit |
 | `503` | payment/verifier service unavailable; do not imply success |
@@ -214,7 +239,8 @@ Do not turn a verifier outage into a `200` or a paid-access bypass.
 Before production authorization for a merchant integration:
 
 - [ ] AIFP-1 vs AIFP-2 route detection is explicit.
-- [ ] Current AIFP-1 economics are `100/0`.
+- [ ] Current AIFP-1 economics are gross-inclusive `100/0`: payer gross = merchant 99% + AiFinPay 1%, creator 0%.
+- [ ] The displayed/reference action price is the gross payer amount; 1% is not added on top.
 - [ ] Current reference tier values are used where presets are selected.
 - [ ] Unsupported/unverifiable settlement routes fail before payment.
 - [ ] Receipt signature/audience/resource/expiry/amount checks fail closed.
@@ -224,7 +250,7 @@ Before production authorization for a merchant integration:
 - [ ] Token decimals are validated for each payment-live asset.
 - [ ] Gateway/upstream configuration is SSRF-safe.
 - [ ] Secrets are never returned in read APIs or logs.
-- [ ] Reconciliation can identify merchant amount, AiFinPay fee, asset, chain, and tx reference.
+- [ ] Reconciliation can identify gross payer amount, merchant amount, AiFinPay fee, creator amount, asset, chain, and tx reference.
 
 ## 13. What This Guide Does Not Guarantee
 

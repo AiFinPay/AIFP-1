@@ -23,16 +23,31 @@ Before the payer signs/broadcasts:
 
 - classify the protocol as AIFP-1 rather than AIFP-2/x402;
 - bind the quote to merchant/resource/scope;
-- require current AIFP-1 economics `100/0`;
+- require current AIFP-1 gross-inclusive economics `100/0`;
+- require `payer_total_amount = gross_amount`;
+- require merchant + protocol fee + creator = gross in exact settlement units;
+- require protocol fee = 1% of gross and creator amount = 0;
+- reject fee-on-top AIFP-1 routes even when their BPS configuration is `100/0`;
 - verify asset/chain/settlement target policy;
 - ensure the active settlement verifier supports the route;
-- enforce caller budget using concurrency-safe state where a durable cap is promised.
+- enforce caller budget against gross using concurrency-safe state where a durable cap is promised.
 
-If the verifier cannot validate the selected route, fail before payment.
+If the verifier cannot validate the selected route or its gross/split semantics, fail before payment.
 
 ## Settlement Verification
 
-A `tx_ref` alone is not payment proof. The verifier checks the actual rail evidence, including the applicable chain/contract/program, merchant, asset, amount, quote/payment binding, finality, and route economics.
+A `tx_ref` alone is not payment proof. The verifier checks the actual rail evidence, including the applicable chain/contract/program, merchant, asset, gross payer amount, merchant amount, protocol-fee amount, creator amount, quote/payment binding, finality, and route economics.
+
+Current AIFP-1 must satisfy:
+
+```text
+payer_total_amount = gross_amount
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+protocol_fee_amount = 1% of gross under exact base-unit arithmetic
+creator_amount = 0
+```
+
+The displayed/quoted AIFP-1 action price is gross. The 1% fee is deducted from gross and is not added on top.
 
 Receipt issuance must fail closed on mismatch or unsupported verification.
 
@@ -44,7 +59,7 @@ Receipt issuance must fail closed on mismatch or unsupported verification.
 | Issuer | Match a trusted receipt authority |
 | Audience | Match the merchant |
 | Resource/scope | Cover the requested protected resource |
-| Amount/quota | Be sufficient under exact monetary/metering rules |
+| Amount/quota | Gross paid amount or paid quota must be sufficient under exact monetary/metering rules |
 | Expiry | Reject expired authorization |
 | Replay/consumption | Enforce the receipt's single-use or quota semantics atomically |
 | Payment binding | Match the expected quote/settlement identity where included |
@@ -55,9 +70,9 @@ Do not assume every receipt nonce is universally single-use: quota/multi-use rec
 
 - Keep signing material out of source, logs, and client payloads.
 - Rotate verification keys with a safe overlap policy for still-valid receipts.
-- Record quote/payment/receipt IDs, merchant, route class, amounts, asset/chain, verifier outcome, and settlement reference for reconciliation.
+- Record quote/payment/receipt IDs, merchant, route class, gross/merchant/protocol-fee/creator amounts, asset/chain, verifier outcome, and settlement reference for reconciliation.
 - Never log private wallet keys, recovery phrases, or full bearer credentials.
 - Treat webhook verification as mandatory before mutating financial/merchant state.
-- Detect any current AIFP-1 creator amount above zero or treasury profile other than `100` bps unless the record is explicitly legacy.
+- Detect any current AIFP-1 creator amount above zero, payer total different from gross, fee-on-top result, conservation mismatch, or treasury profile other than `100` bps unless the record is explicitly legacy.
 
 See the canonical [Security and Cryptography Specification](aifp/04-Security-and-Cryptography-Specification.md).

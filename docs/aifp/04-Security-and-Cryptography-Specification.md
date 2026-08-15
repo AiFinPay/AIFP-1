@@ -13,21 +13,22 @@ AIFP-1 should preserve, in priority order:
 
 1. **No receipt without verified settlement.**
 2. **No payment into a route the receipt service cannot verify.**
-3. **Correct merchant/resource/amount binding.**
-4. **No duplicate receipt entitlement from one settlement.**
-5. **No cross-route economic confusion.** AIFP-1 is `100/0`; AIFP-2/x402 is `0/0`.
-6. **No private-key custody required for the non-custodial payer flow.**
-7. **Exact monetary arithmetic and correct token decimals.**
-8. **Replay/idempotency protection.**
-9. **Fail-closed merchant receipt authorization.**
-10. **Auditable/reconcilable financial state.**
+3. **Correct merchant/resource/gross/split binding.**
+4. **Gross value conservation.** For current AIFP-1, payer total equals gross; merchant + AiFinPay fee + creator equals gross; fee-on-top is rejected.
+5. **No duplicate receipt entitlement from one settlement.**
+6. **No cross-route economic confusion.** AIFP-1 is gross-inclusive `100/0`; AIFP-2/x402 is `0/0`.
+7. **No private-key custody required for the non-custodial payer flow.**
+8. **Exact monetary arithmetic and correct token decimals.**
+9. **Replay/idempotency protection.**
+10. **Fail-closed merchant receipt authorization.**
+11. **Auditable/reconcilable financial state.**
 
 ## 2. Trust Boundaries
 
 ```mermaid
 flowchart LR
-    Agent[Agent / payer] -->|AIFP-1 challenge + quote| Control[AiFinPay quote/verifier]
-    Agent -->|locally signed settlement| Rail[Settlement rail]
+    Agent[Agent / payer] -->|AIFP-1 challenge + gross quote| Control[AiFinPay quote/verifier]
+    Agent -->|locally signed gross settlement| Rail[Settlement rail]
     Rail -->|chain/rail evidence| Verifier[Settlement verifier]
     Verifier -->|verified only| Receipt[Receipt authority]
     Receipt -->|signed receipt| Agent
@@ -37,8 +38,8 @@ flowchart LR
 
 The critical trust transitions are:
 
-- **quote → signing:** client trusts route/economic metadata enough to spend;
-- **settlement → receipt:** verifier determines whether actual payment matches the quote;
+- **quote → signing:** client trusts route/economic metadata enough to spend the quoted gross amount;
+- **settlement → receipt:** verifier determines whether actual payment matches the quote and required 99/1/0 split;
 - **receipt → access:** merchant determines whether the receipt authorizes this resource/scope.
 
 ## 3. Current Economic Security Invariant
@@ -46,9 +47,17 @@ The critical trust transitions are:
 Current AIFP-1:
 
 ```text
-treasuryBps = 100
-creatorBps  = 0
+gross_amount         = commercial amount paid by the agent
+payer_total_amount   = gross_amount
+treasuryBps          = 100
+creatorBps           = 0
+protocol_fee_amount  = 1% of gross
+creator_amount       = 0
+merchant_amount      = gross_amount - protocol_fee_amount
+merchant + protocol_fee + creator = gross
 ```
+
+The 1% AiFinPay fee is **deducted from gross**. A route that adds 1% above the displayed/quoted AIFP-1 action price is economically incompatible with the current profile and MUST fail closed before payment.
 
 Current AIFP-2/x402:
 
@@ -57,7 +66,7 @@ treasuryBps = 0
 creatorBps  = 0
 ```
 
-A payment client, backend, or registry must not silently route AIFP-1 through `100/1` or AIFP-2 through any fee-bearing legacy target.
+A payment client, backend, or registry must not silently route AIFP-1 through `100/1` or fee-on-top semantics, or route AIFP-2 through any fee-bearing legacy target.
 
 A contract-level maximum fee such as `MAX_TOTAL_FEE_BPS=500` is a bound on authority, not the active economic rate.
 
@@ -65,9 +74,9 @@ A contract-level maximum fee such as `MAX_TOTAL_FEE_BPS=500` is a bound on autho
 
 ### 4.1 Settlement spoofing
 
-**Threat:** payer supplies a real transaction hash that did not pay the quoted merchant/amount/asset or did not execute the expected contract path.
+**Threat:** payer supplies a real transaction hash that did not pay the quoted gross amount, merchant share, asset, or expected contract path.
 
-**Required mitigation:** verify the actual chain/rail evidence, including the fields applicable to the selected route.
+**Required mitigation:** verify the actual chain/rail evidence, including all economic fields applicable to the selected route.
 
 ### 4.2 Receipt forgery
 
@@ -81,11 +90,11 @@ A contract-level maximum fee such as `MAX_TOTAL_FEE_BPS=500` is a bound on autho
 
 **Required mitigation:** bind merchant/audience, resource/scope, expiry, and receipt/payment identity; meter/consume state atomically where stateful limits apply.
 
-### 4.4 Cross-protocol confusion
+### 4.4 Cross-protocol or gross/net confusion
 
-**Threat:** generic HTTP `402` is misclassified as AIFP-1 or x402, causing a client to pay the wrong target/profile.
+**Threat:** generic HTTP `402`, ambiguous `amount` fields, or a fee-on-top contract causes a client to pay the wrong target/profile or more than the AIFP-1 gross quote.
 
-**Required mitigation:** explicit protocol/version detection and route-specific policy.
+**Required mitigation:** explicit protocol/version detection, route-specific policy, explicit gross/merchant/protocol-fee/creator amounts, and conservation checks before signing and receipt issuance.
 
 ### 4.5 Decimal/unit mismatch
 
@@ -95,7 +104,7 @@ A contract-level maximum fee such as `MAX_TOTAL_FEE_BPS=500` is a bound on autho
 
 ### 4.6 Registry/source drift
 
-**Threat:** SDK/backend uses a stale address, ABI/IDL, source tree, or version while another implementation is deployed.
+**Threat:** SDK/backend uses a stale address, ABI/IDL, source tree, economic semantic, or version while another implementation is deployed.
 
 **Required mitigation:** canonical registry + source/deployment provenance + CI drift checks where practical.
 
@@ -103,7 +112,7 @@ A contract-level maximum fee such as `MAX_TOTAL_FEE_BPS=500` is a bound on autho
 
 **Threat:** concurrent agent calls both pass a budget check before either records spend.
 
-**Required mitigation:** atomic reservation/commit/release or equivalent concurrency-safe policy.
+**Required mitigation:** atomic reservation/commit/release or equivalent concurrency-safe policy, with budget calculated against the gross payer amount.
 
 ### 4.8 Free-quota identity spoofing
 
@@ -124,8 +133,11 @@ A binding quote should include enough immutable context to decide exactly what t
 - route class;
 - merchant/recipient;
 - resource/scope;
-- merchant amount;
-- total amount under the selected contract semantics;
+- `gross_amount`;
+- `payer_total_amount` (equal to gross for current AIFP-1);
+- `merchant_amount` (99% of gross under current profile);
+- `protocol_fee_amount` (1% of gross under current profile);
+- `creator_amount` (zero);
 - `treasuryBps=100`;
 - `creatorBps=0`;
 - asset/token;
@@ -135,17 +147,33 @@ A binding quote should include enough immutable context to decide exactly what t
 - expiry;
 - verifier capability/profile where required.
 
+Before signing, implementations should validate exact conservation in the selected settlement base units:
+
+```text
+payer_total_amount = gross_amount
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+```
+
 ### 5.1 Pre-payment verifier gate
 
-The quote service must not return a payable route unless the active verifier can validate it.
+The quote service must not return a payable route unless the active verifier can validate it, including the current gross-inclusive economics.
 
-Failure mode to prevent:
+Failure modes to prevent:
 
 ```text
 payer sends funds
 → receipt service receives tx_ref
 → only then discovers verifier/ABI/route is unavailable
 → payer has paid but cannot receive receipt
+```
+
+and:
+
+```text
+agent sees gross price X
+→ implementation treats X as merchant net
+→ adds 1% on top
+→ payer is charged more than the AIFP-1 quote semantics allow
 ```
 
 The system should fail before payment instead.
@@ -176,12 +204,16 @@ For an on-chain route, verify as applicable:
 7. expected payer when required;
 8. expected merchant recipient;
 9. expected token/asset;
-10. correct merchant amount and total amount;
-11. quote/payment/order identifier binding;
-12. active `100/0` economics;
-13. settlement has not already been consumed for another receipt.
+10. payer settlement amount equals quoted gross amount;
+11. merchant amount equals the quoted merchant share;
+12. AiFinPay protocol-fee amount equals the quoted 1% share;
+13. creator/referral amount is zero;
+14. merchant + protocol fee + creator equals gross exactly;
+15. quote/payment/order identifier binding;
+16. active gross-inclusive `100/0` economics;
+17. settlement has not already been consumed for another receipt.
 
-An RPC `200 OK`, a transaction hash, or a matching recipient alone is not enough.
+An RPC `200 OK`, a transaction hash, a matching recipient, or `treasuryBps=100` alone is not enough. A fee-on-top implementation with `100` bps is still an economic mismatch.
 
 ## 8. Token Decimals And Exact Arithmetic
 
@@ -195,13 +227,16 @@ Tests should cover:
 - one whole unit → correct USD/minor-unit value where price-pegged semantics are assumed;
 - minimum/boundary amounts;
 - no `10^12` or inverse scaling error between 6- and 18-decimal assets;
-- fee rounding at low amounts.
+- fee rounding at low amounts;
+- exact gross conservation after fee splitting.
 
 ## 9. Fee Rounding
 
-AIFP-1 requires a non-zero 1% treasury leg. With integer arithmetic, sufficiently small values may round that leg to zero.
+AIFP-1 requires a non-zero 1% treasury leg. With integer arithmetic, sufficiently small gross values may round that leg to zero.
 
 If the contract rejects such an amount, the minimum must be derived from the token/contract semantics, not a universal raw-unit constant whose economic value changes by asset decimals.
+
+Batching may be used to reach an exactly splittable gross amount. Fee-on-top must not be used as a rounding workaround.
 
 Creator fee is `0` and must not create a minimum/floor requirement.
 
@@ -228,7 +263,8 @@ The active receipt profile should bind enough information to prevent confused au
 - payer/agent when available;
 - resource/scope;
 - quote/payment/settlement ID;
-- amount or paid quota;
+- gross paid amount or paid quota;
+- merchant/protocol-fee split where settlement economics are represented;
 - route class;
 - issuance/expiry;
 - receipt ID.
@@ -261,7 +297,7 @@ Merchant receipt verification should fail closed on:
 - wrong merchant/audience;
 - uncovered resource/scope;
 - expired receipt;
-- insufficient paid amount/quota;
+- insufficient gross paid amount/quota;
 - replay/consumption conflict;
 - route/profile mismatch when such metadata is part of the receipt.
 
@@ -284,8 +320,8 @@ Required operational properties include:
 For payment contract changes:
 
 - exact source commit is recorded;
-- CI/tests cover fee calculation, replay, native/token transfer paths, low amounts, and failure cases;
-- deployment constructor/config values are reviewed;
+- CI/tests cover gross-inclusive fee calculation, replay, native/token transfer paths, low amounts, and failure cases;
+- deployment constructor/config values and gross-vs-net semantics are reviewed;
 - runtime/source provenance is checked after deployment where feasible;
 - ownership/admin is moved to the approved governance control before high-value use;
 - independent human/security review is required at the risk level set by the engineering release policy.
@@ -302,7 +338,7 @@ For each route establish:
 - deployed address/program;
 - ABI/IDL/entrypoint;
 - supported assets/decimals;
-- current fee profile;
+- current fee profile and gross-vs-net semantics;
 - verifier implementation;
 - SDK builder implementation;
 - end-to-end evidence.
@@ -334,22 +370,26 @@ Record enough to investigate and reconcile payments without storing secrets:
 - merchant;
 - route class;
 - chain/asset;
-- merchant/treasury/creator amounts;
+- gross payer amount;
+- merchant/protocol-fee/creator amounts;
 - transaction/event reference;
 - verifier outcome;
 - finality/reconciliation state.
 
-Current AIFP-1 reconciliation should alert on any creator amount above zero or a treasury profile other than `100` bps unless the record is explicitly legacy/historical.
+Current AIFP-1 reconciliation should alert on any creator amount above zero, any payer total different from gross, any failure of `merchant + fee + creator = gross`, any fee-on-top result, or a treasury profile other than `100` bps unless the record is explicitly legacy/historical.
 
 ## 20. Release Security Gate
 
 Before an AIFP-1 route is publicly marked payment-live:
 
 - [ ] exact source/version identified;
-- [ ] economics are `100/0`;
+- [ ] economics are gross-inclusive `100/0`;
+- [ ] displayed/reference action price is the gross payer amount;
+- [ ] payer settlement equals gross and no 1% fee is added on top;
+- [ ] merchant + protocol fee + creator equals gross exactly;
 - [ ] token decimals verified;
-- [ ] quote refuses unverifiable routes before payment;
-- [ ] settlement verifier checks actual chain/rail evidence;
+- [ ] quote refuses unverifiable or fee-on-top routes before payment;
+- [ ] settlement verifier checks actual chain/rail evidence and amount split;
 - [ ] receipt only follows verifier success;
 - [ ] replay/idempotency tests pass;
 - [ ] low-value/rounding tests pass;

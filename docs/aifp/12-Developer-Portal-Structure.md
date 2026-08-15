@@ -15,20 +15,25 @@ The portal should:
 - render canonical repository content rather than creating a second source of truth;
 - generate API/reference pages from OpenAPI and schemas where practical;
 - label draft, experimental, verified, and payment-live status precisely;
-- avoid showing stale pricing or legacy `100/1` economics as current.
+- avoid showing stale pricing, legacy `100/1`, or fee-on-top AIFP-1 economics as current.
 
 ## 2. Current Economics Block
 
-Every relevant pricing page should consistently show:
+Every relevant pricing page should consistently show that the AIFP-1 action price is the **gross payer amount**, with 1% deducted from gross rather than added on top:
 
 | AIFP-1 item | Current value |
 |---|---:|
-| Standard | `$0.0005` |
-| Complex | `$0.002` |
-| Premium | `$0.005` |
-| AiFinPay protocol fee | `1%` / `100` bps |
+| Standard gross payer price | `$0.0005` |
+| Standard merchant / AiFinPay | `$0.000495` / `$0.000005` |
+| Complex gross payer price | `$0.002` |
+| Complex merchant / AiFinPay | `$0.00198` / `$0.00002` |
+| Premium gross payer price | `$0.005` |
+| Premium merchant / AiFinPay | `$0.00495` / `$0.00005` |
+| AiFinPay protocol fee | `1%` of gross / `100` bps |
 | Creator/referral fee | `0` bps |
-| Merchant amount | `99%` before external network/settlement costs |
+| Merchant amount | `99%` of gross before external network/settlement costs |
+| Payer settlement | `100%` of gross (`payer_total_amount = gross_amount`) |
+| Fee-on-top | Not permitted for current AIFP-1 |
 
 AIFP-2/x402 must be shown separately as a `0/0` AiFinPay fee profile.
 
@@ -38,7 +43,7 @@ AIFP-2/x402 must be shown separately as a `0/0` AiFinPay fee profile.
 AIFP-1 Docs
 ├── Home
 │   ├── What AIFP-1 is
-│   ├── Current economics
+│   ├── Current gross-inclusive economics
 │   ├── HTTP 402 flow
 │   └── Draft / implementation-status notice
 ├── Get Started
@@ -49,6 +54,7 @@ AIFP-1 Docs
 │   ├── AIFP-1 vs AIFP-2/x402
 │   ├── Payment Challenge
 │   ├── Binding Quote
+│   ├── Gross / Merchant / Protocol Fee Amounts
 │   ├── Non-custodial Settlement
 │   ├── Settlement Verification
 │   ├── Receipts & Scope
@@ -97,6 +103,7 @@ For each operation show:
 
 - request schema;
 - response schema;
+- gross payer amount and merchant/protocol-fee/creator breakdown where payment-bearing;
 - route/profile requirements;
 - error cases;
 - whether the route is only a protocol definition or currently backed by a verified implementation;
@@ -130,6 +137,7 @@ A network status page should distinguish:
 | `canonical target identified` | source/address relationship is resolved |
 | `verifier ready` | backend can independently verify the selected payment path |
 | `SDK ready` | client can construct the correct current route |
+| `economics verified` | actual settlement semantics preserve payer gross and the 99/1/0 split |
 | `E2E verified` | complete payment evidence bundle exists |
 | `payment-live` | explicitly approved for current product use |
 | `legacy` | historical/superseded deployment, not selected for current payments |
@@ -145,15 +153,15 @@ Search should index:
 - error names;
 - AIPs;
 - changelog;
-- route/economics terms such as `100/0`, `0/0`, `treasuryBps`, `creatorBps`.
+- route/economics terms such as `gross_amount`, `merchant_amount`, `protocol_fee_amount`, `100/0`, `0/0`, `treasuryBps`, `creatorBps`.
 
 Useful query aliases:
 
 - `402` → AIFP-1 HTTP 402 flow;
 - `x402` → AIFP-1 vs AIFP-2 boundary page;
-- `1%` → AIFP-1 economics;
+- `1%` → AIFP-1 gross-inclusive economics;
 - `0%` → AIFP-2 route link;
-- `standard price` → `$0.0005`.
+- `standard price` → gross `$0.0005`.
 
 ## 9. Quality Gates
 
@@ -165,6 +173,8 @@ Portal/document CI should detect:
 - Markdown errors where configured;
 - current-product occurrences of superseded `$0.00001 / $0.00006 / $0.00010` pricing;
 - current-product `100/1` or `0.01% creator` examples;
+- gross Standard `$0.0005` incorrectly used as `merchant_amount`;
+- fee-on-top AIFP-1 interpretations;
 - contradictory AIFP-1 vs AIFP-2 fee statements.
 
 Historical/changelog/migration sections may retain old values only when explicitly labeled legacy or superseded.
