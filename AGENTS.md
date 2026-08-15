@@ -40,7 +40,7 @@ hand-edit them.
 | `examples/` | Runnable merchant, agent, wallet, webhook, receipt, and curl flows. |
 | `sandbox/` | Local challenge, quote, pay, receipt, and webhook playground. |
 | `schemas/` | Schema entry points. |
-| `scripts/` | `validate-openapi`, `validate-schemas`, `check-links`, `lint-markdown`, `build-docs`, `generate-pdfs`, `run-conformance` (planned). |
+| `scripts/` | Validation and conformance helpers, including `check-economics.py`. |
 | `tests/` | Conformance, schema, security, and documentation link tests. |
 | `assets/` | Brand and diagram assets. |
 | `.github/` | Issue templates, PR template, workflows, CODEOWNERS. |
@@ -58,7 +58,7 @@ If you are not sure where a change belongs:
 | Portal copy, navigation, role guides | `docs/*.md` |
 | SDK reference | `sdk/typescript\|python\|go/...` and `docs/aifp/11-SDK-Reference.md` |
 | Runnable example | `examples/...` |
-| Conformance check | `tests/...` |
+| Conformance check | `tests/...` and `scripts/check-economics.py` |
 | Automation | `scripts/...` and `.github/workflows/...` |
 
 When two surfaces disagree, the canonical spec (`docs/aifp/01-`) wins.
@@ -73,6 +73,7 @@ these local checks before opening a pull request:
 |---|---|
 | Markdown lint | `npx --yes markdownlint-cli2 "**/*.md" "!node_modules"` |
 | OpenAPI lint | `npx --yes @redocly/cli lint docs/aifp/08-OpenAPI-3.1-Specification.yaml` |
+| Economics conformance | `python scripts/check-economics.py` |
 | Local Markdown link check | `python .github/workflows/link-check.yml` (run the embedded Python block from the workflow) |
 | Secret scan (local) | `gitleaks protect --staged --verbose --redact --no-git` (requires `gitleaks`; the `.githooks/pre-push` hook wraps this) |
 | Conformance | See `tests/README.md` (planned runner) |
@@ -100,23 +101,33 @@ Do not change these without an accepted AIP and a migration plan:
 
 | Constant | Value |
 |---|---|
-| AIFP-1 protocol fee | `0.01` (1%, `100` bps) |
+| AIFP-1 reference-price semantics | **gross payer amount**; protocol fee is deducted from gross, never added on top |
+| AIFP-1 protocol fee | `0.01` (1% of gross, `100` bps) |
 | AIFP-1 creator/referral fee | `0` (0 bps) |
-| AIFP-1 merchant settlement rate | `0.99` (99%, before network/settlement costs) |
+| AIFP-1 merchant settlement rate | `0.99` (99% of gross, before network/settlement costs) |
+| AIFP-1 payer settlement amount | `1.00` of gross (`payer_total_amount = gross_amount`) |
 | AIFP-2/x402 AiFinPay protocol fee | `0` (0%, separate route profile) |
-| Tier `standard` | from `$0.0005` |
-| Tier `complex` | from `$0.002` |
-| Tier `premium` | from `$0.005` |
+| Tier `standard` gross price | from `$0.0005` |
+| Tier `complex` gross price | from `$0.002` |
+| Tier `premium` gross price | from `$0.005` |
 | Receipt default TTL | 600 seconds |
 | Idempotency dedupe window | 24 hours |
 | Receipt signature | Ed25519 |
 | Webhook signature | HMAC-SHA256 |
 | Control-plane transport | TLS 1.3 |
 
-`docs.yml` must reject superseded current-product markers such as
-`$0.00001`, `$0.00006`, `$0.00010`, current-looking `100/1`, and a non-zero
-creator/referral fee. Historical material may retain superseded values only when
-it is explicitly labeled legacy or superseded.
+Current AIFP-1 amount conservation is normative:
+
+```text
+payer_total_amount = gross_amount
+merchant_amount + protocol_fee_amount + creator_amount = gross_amount
+protocol_fee_amount = 1% of gross under exact settlement base-unit arithmetic
+creator_amount = 0
+```
+
+Never use the gross tier value as `merchant_amount`. Never implement or document the current AIFP-1 1% fee as an additional surcharge above the displayed/quoted action price.
+
+`docs.yml` and `scripts/check-economics.py` must reject active economics drift, including gross-as-merchant examples. Historical material may retain superseded values only when it is explicitly labeled legacy or superseded.
 
 ## Pull Request Workflow
 
@@ -140,9 +151,9 @@ it is explicitly labeled legacy or superseded.
   per `SECURITY.md`. Never post them in issues, PRs, or chat.
 - The `.githooks/pre-push` script runs `gitleaks` locally if
   installed; CI runs the same scan via `secret-scan.yml`.
-- Receipt, JWKS, and webhook changes are security-sensitive and
+- Receipt, JWKS, webhook, quote-economics, and settlement-semantics changes are security-sensitive and
   require security review.
-- Do not weaken audience, resource, amount, expiry, or nonce
+- Do not weaken audience, resource, gross amount, split, expiry, or nonce
   validation in docs, OpenAPI, JSON Schemas, or SDKs.
 
 ## Governance
@@ -174,9 +185,9 @@ it is explicitly labeled legacy or superseded.
 - [ ] Markdown renders and links resolve locally.
 - [ ] `markdownlint-cli2` passes.
 - [ ] `redocly lint` passes for the OpenAPI contract.
+- [ ] `python scripts/check-economics.py` passes.
 - [ ] `gitleaks` (local or CI) is clean.
 - [ ] PR template is filled out, including compatibility level.
 - [ ] Affected canonical documents and cross-links are updated.
 - [ ] No secrets, real `kid` values, or production material included.
-- [ ] No PDF hand-edits, no `bun.lock` hand-edits, no legacy pricing
-      markers reintroduced.
+- [ ] No PDF hand-edits, no `bun.lock` hand-edits, no legacy pricing or fee-on-top semantics reintroduced.
