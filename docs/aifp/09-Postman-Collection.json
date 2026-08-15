@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "AiFinPay AIFP-1 Merchant Monetization — Draft",
-    "description": "Reference collection for AIFP-1 HTTP 402 merchant monetization. Current reference tiers: Standard $0.0005, Complex $0.002, Premium $0.005. Current AIFP-1 economics: treasury_bps=100, creator_bps=0. AIFP-2/x402 is a separate 0/0 route profile and is not represented by this collection. Endpoint availability depends on the active deployment; this collection is not evidence that every route is production-live.",
+    "description": "Reference collection for AIFP-1 HTTP 402 merchant monetization. Current gross reference tiers: Standard $0.0005, Complex $0.002, Premium $0.005. Current AIFP-1 economics are gross-inclusive: payer settles gross, merchant receives 99%, AiFinPay receives 1% (treasury_bps=100), creator receives 0% (creator_bps=0). The 1% fee is not added on top. AIFP-2/x402 is a separate 0/0 route profile and is not represented by this collection. Endpoint availability depends on the active deployment; this collection is not evidence that every route is production-live.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "aifp-1-draft-collection",
     "version": "1.0.0-draft"
@@ -73,6 +73,13 @@
               "  pm.collectionVariables.set('quote_id', b.quote_id);",
               "  pm.test('AIFP-1 route', () => b.route_class === 'AIFP-1');",
               "  pm.test('100/0 economics', () => Number(b.treasury_bps) === 100 && Number(b.creator_bps) === 0);",
+              "  pm.test('payer total equals gross', () => b.payer_total_amount === b.gross_amount);",
+              "  pm.test('creator amount is zero', () => Number(b.creator_amount) === 0);",
+              "  pm.test('gross is conserved', () => {",
+              "    const scale = 1000000000n;",
+              "    const toScaled = (v) => BigInt(Math.round(Number(v) * Number(scale)));",
+              "    return toScaled(b.merchant_amount) + toScaled(b.protocol_fee_amount) + toScaled(b.creator_amount) === toScaled(b.gross_amount);",
+              "  });",
               "}"
             ]
           }
@@ -95,7 +102,7 @@
           "mode": "raw",
           "raw": "{\n  \"merchant_id\": \"{{merchant_id}}\",\n  \"resource\": \"{{resource}}\",\n  \"pricing_tier\": \"{{pricing_tier}}\",\n  \"units\": 1\n}"
         },
-        "description": "The service must fail before payment if no verifier-ready AIFP-1 settlement route is available. For the standard preset, the reference merchant amount is $0.0005 per action."
+        "description": "The service must fail before payment if no verifier-ready AIFP-1 settlement route is available. For the Standard preset, the gross payer amount is $0.0005 per action, the merchant amount is $0.000495, and the AiFinPay protocol fee is $0.000005. The fee is deducted from gross, not added on top."
       }
     },
     {
@@ -121,6 +128,7 @@
               "if (pm.response.code === 200) {",
               "  const b = pm.response.json();",
               "  if (b.receipt_id) pm.collectionVariables.set('receipt_id', b.receipt_id);",
+              "  if (b.gross_amount !== undefined) pm.test('receipt keeps 99/1/0 economics', () => Number(b.creator_amount) === 0 && Number(b.treasury_bps) === 100);",
               "}"
             ]
           }
@@ -147,7 +155,7 @@
           "mode": "raw",
           "raw": "{\n  \"quote_id\": \"{{quote_id}}\",\n  \"chain\": \"polygon\",\n  \"asset\": \"USDC\",\n  \"tx_ref\": \"{{tx_ref}}\"\n}"
         },
-        "description": "The payer executes settlement with its own wallet before this call. /v1/pay verifies the settlement reference and must not issue a receipt on mismatch or verifier failure."
+        "description": "The payer executes exactly the quoted gross settlement amount with its own wallet before this call. /v1/pay verifies the settlement reference and the gross-inclusive 99/1/0 split and must not issue a receipt on mismatch or verifier failure."
       }
     },
     {
@@ -194,7 +202,7 @@
           "mode": "raw",
           "raw": "{\n  \"receipt\": \"<SIGNED_RECEIPT>\",\n  \"merchant_id\": \"{{merchant_id}}\",\n  \"resource\": \"{{resource}}\",\n  \"required_amount\": \"0.0005\"\n}"
         },
-        "description": "Merchants should verify receipts locally where supported. This endpoint is an optional compatibility helper, not a substitute for settlement verification before receipt issuance."
+        "description": "required_amount is the required gross paid amount or quota-equivalent amount for the resource. Merchants should verify receipts locally where supported. This endpoint is an optional compatibility helper, not a substitute for settlement verification before receipt issuance."
       }
     }
   ]
