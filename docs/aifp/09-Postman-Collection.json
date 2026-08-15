@@ -72,14 +72,21 @@
               "  const b = pm.response.json();",
               "  pm.collectionVariables.set('quote_id', b.quote_id);",
               "  pm.test('AIFP-1 route', () => b.route_class === 'AIFP-1');",
-              "  pm.test('100/0 economics', () => Number(b.treasury_bps) === 100 && Number(b.creator_bps) === 0);",
-              "  pm.test('payer total equals gross', () => b.payer_total_amount === b.gross_amount);",
-              "  pm.test('creator amount is zero', () => Number(b.creator_amount) === 0);",
-              "  pm.test('gross is conserved', () => {",
-              "    const scale = 1000000000n;",
-              "    const toScaled = (v) => BigInt(Math.round(Number(v) * Number(scale)));",
-              "    return toScaled(b.merchant_amount) + toScaled(b.protocol_fee_amount) + toScaled(b.creator_amount) === toScaled(b.gross_amount);",
-              "  });",
+              "  pm.test('100/0 economics', () => String(b.treasury_bps) === '100' && String(b.creator_bps) === '0');",
+              "  pm.test('payer total equals gross', () => String(b.payer_total_amount) === String(b.gross_amount));",
+              "  pm.test('creator amount is zero', () => /^0(?:\\.0+)?$/.test(String(b.creator_amount)));",
+              "  const amounts = [b.gross_amount, b.merchant_amount, b.protocol_fee_amount, b.creator_amount].map(String);",
+              "  const scaleDigits = Math.max(...amounts.map(v => (v.split('.')[1] || '').length));",
+              "  const scale = 10n ** BigInt(scaleDigits);",
+              "  const toScaled = (value) => {",
+              "    const [whole, fraction = ''] = String(value).split('.');",
+              "    const padded = (fraction + '0'.repeat(scaleDigits)).slice(0, scaleDigits);",
+              "    return BigInt(whole || '0') * scale + BigInt(padded || '0');",
+              "  };",
+              "  pm.test('gross is conserved with exact decimal-string arithmetic', () => toScaled(b.merchant_amount) + toScaled(b.protocol_fee_amount) + toScaled(b.creator_amount) === toScaled(b.gross_amount));",
+              "  if (b.pricing_tier === 'standard') {",
+              "    pm.test('standard gross split is canonical', () => String(b.gross_amount) === '0.0005' && String(b.payer_total_amount) === '0.0005' && String(b.merchant_amount) === '0.000495' && String(b.protocol_fee_amount) === '0.000005' && /^0(?:\\.0+)?$/.test(String(b.creator_amount)));",
+              "  }",
               "}"
             ]
           }
@@ -128,7 +135,7 @@
               "if (pm.response.code === 200) {",
               "  const b = pm.response.json();",
               "  if (b.receipt_id) pm.collectionVariables.set('receipt_id', b.receipt_id);",
-              "  if (b.gross_amount !== undefined) pm.test('receipt keeps 99/1/0 economics', () => Number(b.creator_amount) === 0 && Number(b.treasury_bps) === 100);",
+              "  if (b.gross_amount !== undefined) pm.test('receipt keeps 100/0 profile', () => /^0(?:\\.0+)?$/.test(String(b.creator_amount)) && String(b.treasury_bps) === '100');",
               "}"
             ]
           }
