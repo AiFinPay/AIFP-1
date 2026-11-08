@@ -61,3 +61,7 @@ Current AIFP-1 security requirements include:
 3. We coordinate remediation.
 4. We publish an advisory when appropriate.
 5. We credit reporters unless anonymity is requested.
+
+## Security maintainers
+
+- Pavlo Svizinskyy (@enot3615): security review and vulnerability triage
