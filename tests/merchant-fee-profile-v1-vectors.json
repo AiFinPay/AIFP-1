@@ -1,0 +1,91 @@
+{
+  "profile": "AIFP1-MERCHANT-FEE-V1",
+  "description": "Amounts are atomic units, not fiat dollars.",
+  "valid": [
+    {
+      "gross": "200",
+      "bps": 100,
+      "fee": "2",
+      "merchant": "198"
+    },
+    {
+      "gross": "200",
+      "bps": 500,
+      "fee": "10",
+      "merchant": "190"
+    },
+    {
+      "gross": "500",
+      "bps": 250,
+      "fee": "12",
+      "merchant": "488"
+    },
+    {
+      "gross": "20000",
+      "bps": 100,
+      "fee": "200",
+      "merchant": "19800"
+    },
+    {
+      "gross": "5000000",
+      "bps": 500,
+      "fee": "250000",
+      "merchant": "4750000"
+    },
+    {
+      "gross": "100",
+      "bps": 100,
+      "fee": "1",
+      "merchant": "99"
+    },
+    {
+      "gross": "20",
+      "bps": 500,
+      "fee": "1",
+      "merchant": "19"
+    },
+    {
+      "gross": "900719925474099300000",
+      "bps": 500,
+      "fee": "45035996273704965000",
+      "merchant": "855683929200394335000"
+    }
+  ],
+  "invalid": [
+    {
+      "gross": "1000",
+      "bps": 99,
+      "error": "RATE"
+    },
+    {
+      "gross": "1000",
+      "bps": 501,
+      "error": "RATE"
+    },
+    {
+      "gross": "1000",
+      "bps": 250.5,
+      "error": "RATE"
+    },
+    {
+      "gross": "99",
+      "bps": 100,
+      "error": "ZERO_FEE"
+    },
+    {
+      "gross": "19",
+      "bps": 500,
+      "error": "ZERO_FEE"
+    },
+    {
+      "gross": "0",
+      "bps": 100,
+      "error": "AMOUNT"
+    },
+    {
+      "gross": "1e3",
+      "bps": 100,
+      "error": "AMOUNT"
+    }
+  ]
+}

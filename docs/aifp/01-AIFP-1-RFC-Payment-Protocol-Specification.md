@@ -658,3 +658,7 @@ AIFP-2/x402
 **2026-08-15:** Canonical AIFP-1 RFC realigned with the founder-approved August 14 economic model and clarified as strictly gross-inclusive. The AIFP-1 displayed/quoted action price is the gross payer amount; 1% AiFinPay is deducted from gross and the merchant receives 99%. Fee-on-top AIFP-1 semantics, superseded microcent tiers, and the old `100/1` creator-fee profile are not current AIFP-1 guidance. AIFP-2/x402 remains explicitly separated as a `0/0` route profile.
 
 **2026-08-15 lifecycle safety audit:** Budget/policy and quote-expiry decisions were made explicitly pre-payment. `/v1/pay` is a post-payment settlement-verification endpoint and cannot use a newly discovered budget threshold or delayed verification timestamp as a standalone reason to strand a valid matching settlement without its receipt entitlement. Pending/verifier-unavailable states must reconcile the same settlement reference before any replacement payment.
+
+## Appendix D — Proposed merchant-specific economics profile (2026-11-27)
+
+**Draft, not active.** The [merchant-specific fee AIP](../../aips/aip-draft-merchant-fee-profiles.md) proposes `AIFP1-MERCHANT-FEE-V1` with negotiated 100–500 bps (1%–5%) for each merchant, zero creator/referral fee, gross-inclusive pricing and immutable quote-bound fee revisions. The merchant receives gross less the actual atomic-unit fee. AIFP-2 remains separate at 0/0. The active baseline in this RFC is unchanged until acceptance, coordinated contract/schema/SDK/backend migration and conformance evidence.
