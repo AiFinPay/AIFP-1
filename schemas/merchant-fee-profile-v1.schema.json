@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Candidate AIFP-1 merchant fee economics envelope (draft)",
+  "description": "Proposed profile; not the active quote schema. Cross-field arithmetic and authorization require independent validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile",
+    "merchant_id",
+    "fee_profile_id",
+    "fee_profile_revision",
+    "treasury_bps",
+    "creator_bps",
+    "gross_atomic",
+    "merchant_atomic",
+    "protocol_fee_atomic",
+    "creator_atomic",
+    "payer_total_atomic",
+    "chain",
+    "asset",
+    "asset_decimals",
+    "treasury_destination"
+  ],
+  "properties": {
+    "profile": {
+      "const": "AIFP1-MERCHANT-FEE-V1"
+    },
+    "merchant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fee_profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fee_profile_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "treasury_bps": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 500
+    },
+    "creator_bps": {
+      "const": 0
+    },
+    "gross_atomic": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "merchant_atomic": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "protocol_fee_atomic": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "creator_atomic": {
+      "type": "string",
+      "pattern": "^0$"
+    },
+    "payer_total_atomic": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "chain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "asset": {
+      "type": "string",
+      "minLength": 1
+    },
+    "asset_decimals": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 36
+    },
+    "treasury_destination": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
