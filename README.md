@@ -117,3 +117,7 @@ Actual SDK package versions, MCP releases, backend deployment status, and paymen
 ## License
 
 Code, examples, schemas, scripts, tests, GitHub workflows, and machine-readable artifacts are licensed under Apache-2.0. Documentation and prose specifications are licensed under CC BY 4.0 unless a file states otherwise. See [LICENSE](LICENSE).
+
+## Proposed merchant-specific economics
+
+A [draft AIP](aips/aip-draft-merchant-fee-profiles.md) proposes individually negotiated 1%–5% gross-inclusive merchant fee profiles. This is an opt-in future profile, not a change to current payment-live configuration or the fixed-rate baseline described above.
