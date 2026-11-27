@@ -82,3 +82,7 @@ Older examples using `$0.00001 / $0.00006 / $0.00010` action tiers, a `100/1` tr
 - Agents should be able to enforce budgets before payment using the gross payer amount.
 - The protocol should work for tiny actions without introducing a native token.
 - Fee accounting must identify the product route explicitly so AIFP-1 and AIFP-2 economics cannot be mixed.
+
+## Proposed merchant-specific rate range
+
+**Draft, not active.** Under the [merchant-specific fee AIP](../aips/aip-draft-merchant-fee-profiles.md), the fee is individually negotiated at 100–500 bps, deducted from gross. Before atomic-unit rounding and external costs, the merchant share is 95%–99%. The quote binds the exact agreed rate and revision; no change to already authorized economics. Current fixed-rate examples above remain the active baseline pending coordinated migration.
