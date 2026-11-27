@@ -28,3 +28,11 @@ jobs:
         run: python scripts/check-economics.py
       - name: Check AIFP-1 payer lifecycle safety
         run: python scripts/check-lifecycle.py
+      - name: Check draft merchant fee arithmetic
+        run: python3 scripts/check-merchant-fee-profile.py
+      - name: Install isolated draft schema validator
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aifp-conformance"
+          "$RUNNER_TEMP/aifp-conformance/bin/python" -m pip install --only-binary=:all: -r scripts/requirements-conformance.txt
+      - name: Check draft merchant fee schema
+        run: '"$RUNNER_TEMP/aifp-conformance/bin/python" scripts/check-merchant-fee-schema.py'
