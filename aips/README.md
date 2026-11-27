@@ -17,6 +17,7 @@ See [AIP-0001](aip-0001.md) and the [AIP Process](../docs/aifp/06-AIP-Improvemen
 | [19](aip-0019.md) | Budget-Exceeded Error | Standards Track | Interface | Final; budget rejection is pre-payment only and must not strand an already-valid settlement |
 | [23](aip-0023.md) | Streaming Payments via mSECCO Channels | Standards Track | Core | **Withdrawn** from current AIFP-1 scope |
 | [31](aip-0031.md) | Dynamic Pricing Reputation Discount Cap | Informational | N/A | **Superseded** current pricing guidance |
+| [32](aip-0032.md) | Merchant-Specific Fees and Direct Settlement Route Commitments | Standards Track | Economics | **Draft**; not accepted, implemented or payment-live |
 
 ## Current AIFP-1 Baseline
 
@@ -76,7 +77,3 @@ Payment-affecting proposals should not be considered complete from documentation
 2. Open a proposal/PR using the AIP template.
 3. Describe compatibility, security, migration, implementation, and conformance impact.
 4. Keep the RFC, economics, OpenAPI, schemas, SDK/backend policy, contracts/deployment profiles, and examples synchronized when the proposal changes them.
-
-## Pending proposal
-
-- [Merchant-specific AIFP-1 gross-inclusive fee profiles](aip-draft-merchant-fee-profiles.md) — Draft; 100–500 bps negotiated per merchant. AIP number pending assignment.
