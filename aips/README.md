@@ -76,3 +76,7 @@ Payment-affecting proposals should not be considered complete from documentation
 2. Open a proposal/PR using the AIP template.
 3. Describe compatibility, security, migration, implementation, and conformance impact.
 4. Keep the RFC, economics, OpenAPI, schemas, SDK/backend policy, contracts/deployment profiles, and examples synchronized when the proposal changes them.
+
+## Pending proposal
+
+- [Merchant-specific AIFP-1 gross-inclusive fee profiles](aip-draft-merchant-fee-profiles.md) — Draft; 100–500 bps negotiated per merchant. AIP number pending assignment.
